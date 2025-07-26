@@ -7,7 +7,7 @@
           v-model="selectedProductId"
           :options="products"
           option-value="id"
-          option-label="name"
+          option-label="common_name"
           label="Selecciona producto o crea uno nuevo"
           emit-value
           map-options
@@ -89,7 +89,7 @@ export default {
       },
       isEditing: false,
       unitOptions: [
-        { value: 'u', label: 'unidad' },
+        { value: 'u',  label: 'unidad' },
         { value: 'm2', label: 'metros cuadrados' },
         { value: 'm3', label: 'metros cúbicos' },
         { value: 'ml', label: 'metros lineales' }
@@ -114,24 +114,29 @@ export default {
     }
   },
   created() {
-    dbService.initDatabase().then(() => {
-      this.loadProducts()
-    })
+    dbService.initDatabase().then(this.loadProducts)
   },
   methods: {
     loadProducts() {
       console.log('Cargando productos')
-      const res = dbService.db.exec('SELECT id, common_name FROM products')
-      const list = (res[0]?.values || []).map(([id, name]) => ({ id, name }))
-      this.products = [{ id: 0, name: 'Nuevo producto' }, ...list]
+      const res = dbService.db.exec(`
+        SELECT id, common_name
+        FROM products
+      `)
+      const list = (res[0]?.values || []).map(
+        ([id, common_name]) => ({ id, common_name })
+      )
+      this.products = [{ id: 0, common_name: 'Nuevo producto' }, ...list]
       console.log('Productos:', this.products)
     },
     onProductChange() {
       console.log('Producto seleccionado:', this.selectedProductId)
       if (this.selectedProductId > 0) {
-        const stmt = dbService.db.prepare(
-          'SELECT common_name, product_code, description, price, unit, materials FROM products WHERE id = ?'
-        )
+        const stmt = dbService.db.prepare(`
+          SELECT common_name, product_code, description, price, unit, materials
+          FROM products
+          WHERE id = ?
+        `)
         stmt.bind([this.selectedProductId])
         if (stmt.step()) {
           this.form = stmt.getAsObject()
@@ -146,14 +151,11 @@ export default {
       }
     },
     onPriceInput(val) {
-      let cleaned = (val || '')
-        .replace(/[^0-9.]/g, '')                // solo dígitos y punto
+      let cleaned = (val || '').replace(/[^0-9.]/g, '')
       const parts = cleaned.split('.')
-      // un solo punto
       if (parts.length > 1) {
         cleaned = parts[0] + '.' + parts.slice(1).join('')
       }
-      // hasta 2 decimales
       const [intPart, decPart = ''] = cleaned.split('.')
       this.form.price = decPart.length > 0
         ? `${intPart}.${decPart.slice(0, 2)}`
@@ -193,6 +195,7 @@ export default {
       this.loadProducts()
       this.selectedProductId = newId
       this.isEditing = false
+      this.$emit('added')
     },
     saveProduct() {
       console.log('Guardando cambios producto', this.selectedProductId, this.form)
@@ -211,6 +214,7 @@ export default {
       console.log('Producto actualizado')
       this.loadProducts()
       this.isEditing = false
+      this.$emit('saved')
     },
     resetSelection() {
       console.log('Cancelando edición producto')
