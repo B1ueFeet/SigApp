@@ -18,10 +18,10 @@
         />
         <q-input
           v-model="form.phone"
+          label="Teléfono"
           type="text"
           inputmode="numeric"
           maxlength="10"
-          label="Teléfono"
           :disable="fieldsDisabled"
           @input="onPhoneInput"
         />
