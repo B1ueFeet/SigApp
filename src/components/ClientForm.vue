@@ -7,8 +7,7 @@
           :options="clients"
           option-value="id"
           option-label="name"
-          label="Selecciona cliente"
-          @input="onClientChange"
+          label="Selecciona cliente o crea uno nuevo"
           emit-value
           map-options
         />
@@ -19,8 +18,12 @@
         />
         <q-input
           v-model="form.phone"
+          type="text"
+          inputmode="numeric"
+          maxlength="10"
           label="Teléfono"
           :disable="fieldsDisabled"
+          @input="onPhoneInput"
         />
         <q-input
           v-model="form.sector"
@@ -36,7 +39,7 @@
           color="primary"
         />
         <q-btn
-          v-if="selectedClientId"
+          v-if="selectedClientId > 0"
           label="Cancelar"
           flat
           @click="resetSelection"
@@ -55,24 +58,25 @@ export default {
     return {
       clients: [],
       selectedClientId: null,
-      form: {
-        name: '',
-        phone: '',
-        sector: ''
-      },
+      form: { name: '', phone: '', sector: '' },
       isEditing: false
     }
   },
   computed: {
     fieldsDisabled() {
-      if (!this.selectedClientId) return false
-      return !this.isEditing
+      return this.selectedClientId > 0
+        ? !this.isEditing
+        : false
     },
     buttonLabel() {
-      if (this.selectedClientId) {
-        return this.isEditing ? 'Guardar cambios' : 'Editar'
-      }
-      return 'Añadir'
+      return this.selectedClientId > 0
+        ? (this.isEditing ? 'Guardar cambios' : 'Editar')
+        : 'Añadir'
+    }
+  },
+  watch: {
+    selectedClientId() {
+      this.onClientChange()
     }
   },
   created() {
@@ -84,20 +88,20 @@ export default {
     loadClients() {
       console.log('Cargando clientes')
       const res = dbService.db.exec('SELECT id, name FROM clients')
-      this.clients = (res[0]?.values || []).map(([id, name]) => ({ id, name }))
+      const list = (res[0]?.values || []).map(([id, name]) => ({ id, name }))
+      this.clients = [{ id: 0, name: 'Nuevo cliente' }, ...list]
       console.log('Clientes:', this.clients)
     },
     onClientChange() {
       console.log('Cliente seleccionado:', this.selectedClientId)
-      if (this.selectedClientId) {
+      if (this.selectedClientId > 0) {
         const stmt = dbService.db.prepare(
           'SELECT name, phone, sector FROM clients WHERE id = ?'
         )
         stmt.bind([this.selectedClientId])
         if (stmt.step()) {
-          const row = stmt.getAsObject()
-          this.form = { ...row }
-          console.log('Datos cliente:', row)
+          this.form = stmt.getAsObject()
+          console.log('Datos cliente:', this.form)
         }
         stmt.free()
         this.isEditing = false
@@ -106,8 +110,13 @@ export default {
         this.isEditing = true
       }
     },
+    onPhoneInput(val) {
+      const digits = (val || '').replace(/\D/g, '').slice(0, 10)
+      this.form.phone = digits
+      console.log('Teléfono actual:', this.form.phone)
+    },
     onAction() {
-      if (this.selectedClientId) {
+      if (this.selectedClientId > 0) {
         this.isEditing ? this.saveClient() : this.isEditing = true
       } else {
         this.addClient()
@@ -138,7 +147,7 @@ export default {
     },
     resetSelection() {
       console.log('Cancelando edición')
-      this.selectedClientId = null
+      this.selectedClientId = 0
       this.resetForm()
       this.isEditing = true
     },
