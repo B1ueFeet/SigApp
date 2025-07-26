@@ -32,11 +32,16 @@
           label="Precio"
           type="text"
           inputmode="decimal"
+          maxlength="15"
           :disable="fieldsDisabled"
           @input="onPriceInput"
+          @blur="formatPrice"
         />
-        <q-input
+        <q-select
           v-model="form.unit"
+          :options="unitOptions"
+          option-value="value"
+          option-label="label"
           label="Unidad"
           :disable="fieldsDisabled"
         />
@@ -82,7 +87,13 @@ export default {
         unit: '',
         materials: ''
       },
-      isEditing: false
+      isEditing: false,
+      unitOptions: [
+        { value: 'u', label: 'unidad' },
+        { value: 'm2', label: 'metros cuadrados' },
+        { value: 'm3', label: 'metros cúbicos' },
+        { value: 'ml', label: 'metros lineales' }
+      ]
     }
   },
   computed: {
@@ -124,6 +135,7 @@ export default {
         stmt.bind([this.selectedProductId])
         if (stmt.step()) {
           this.form = stmt.getAsObject()
+          this.form.price = parseFloat(this.form.price).toFixed(2)
           console.log('Datos producto:', this.form)
         }
         stmt.free()
@@ -134,13 +146,26 @@ export default {
       }
     },
     onPriceInput(val) {
-      let cleaned = (val || '').replace(/[^\d.]/g, '')
+      let cleaned = (val || '')
+        .replace(/[^0-9.]/g, '')                // solo dígitos y punto
       const parts = cleaned.split('.')
-      if (parts.length > 2) {
+      // un solo punto
+      if (parts.length > 1) {
         cleaned = parts[0] + '.' + parts.slice(1).join('')
       }
-      this.form.price = cleaned
-      console.log('Precio actual:', this.form.price)
+      // hasta 2 decimales
+      const [intPart, decPart = ''] = cleaned.split('.')
+      this.form.price = decPart.length > 0
+        ? `${intPart}.${decPart.slice(0, 2)}`
+        : intPart
+      console.log('Precio raw:', this.form.price)
+    },
+    formatPrice() {
+      const num = parseFloat(this.form.price)
+      this.form.price = isNaN(num)
+        ? ''
+        : num.toFixed(2)
+      console.log('Precio formateado:', this.form.price)
     },
     onAction() {
       if (this.selectedProductId > 0) {
