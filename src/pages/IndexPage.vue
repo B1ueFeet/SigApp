@@ -5,81 +5,34 @@
 
     <q-card class="q-mt-lg">
       <q-card-section class="row items-center q-gutter-sm">
-        <q-select
-          v-model="selectedProdId"
-          :options="productOptions"
-          option-value="id"
-          option-label="common_name"
-          label="Selecciona producto"
-          emit-value
-          map-options
-          style="width: 300px"
-          @update:model-value="onSelectProduct"
-        />
+        <q-select v-model="selectedProdId" :options="productOptions" option-value="id" option-label="common_name"
+          label="Selecciona producto" emit-value map-options style="width: 300px"
+          @update:model-value="onSelectProduct" />
 
-        <q-input
-          v-model.number="itemQuantity"
-          type="number"
-          label="Cantidad"
-          style="width: 120px"
-          @input="onQuantityInput"
-        />
+        <q-input v-model.number="itemQuantity" type="number" label="Cantidad" style="width: 120px"
+          @input="onQuantityInput" />
 
-        <q-input
-          v-model="itemPrice"
-          type="text"
-          inputmode="decimal"
-          label="Valor unitario"
-          style="width: 150px"
-          @input="onRowPriceInput({ unit_price: itemPrice, isNew: true })"
-        />
+        <q-input v-model="itemPrice" type="text" inputmode="decimal" label="Valor unitario" style="width: 150px"
+          @input="onRowPriceInput({ unit_price: itemPrice, isNew: true })" />
 
-        <q-btn
-          label="Añadir a cotización"
-          color="primary"
-          @click="addQuotationItem"
-        />
+        <q-btn label="Añadir a cotización" color="primary" @click="addQuotationItem" />
       </q-card-section>
 
       <q-card-section>
-        <q-checkbox
-          v-model="applyTaxes"
-          label="Incluir IVA (12%)"
-        />
+        <q-checkbox v-model="applyTaxes" label="Incluir IVA (12%)" />
       </q-card-section>
     </q-card>
 
-    <q-table
-      class="q-mt-lg"
-      :rows="quotationItems"
-      :columns="columns"
-      row-key="id"
-      flat
-      bordered
-    >
+    <q-table class="q-mt-lg" :rows="quotationItems" :columns="columns" row-key="id" flat bordered>
       <template v-slot:body-cell-quantity="props">
-        <q-input
-          v-model.number="props.row.quantity"
-          type="number"
-          dense
-          @input="updateRow(props.row)"
-        />
+        <q-input v-model.number="props.row.quantity" type="number" dense @input="updateRow(props.row)" />
       </template>
       <template v-slot:body-cell-unit_price="props">
-        <q-input
-          v-model="props.row.unit_price"
-          type="text"
-          dense
-          inputmode="decimal"
-          @input="onRowPriceInput(props.row)"
-        />
+        <q-input v-model="props.row.unit_price" type="text" dense inputmode="decimal"
+          @input="onRowPriceInput(props.row)" />
       </template>
       <template v-slot:body-cell-description="props">
-        <q-input
-          v-model="props.row.description"
-          dense
-          @input="updateRow(props.row)"
-        />
+        <q-input v-model="props.row.description" dense @input="updateRow(props.row)" />
       </template>
       <template v-slot:body-cell-total="props">
         {{ (props.row.quantity * parseFloat(props.row.unit_price || 0)).toFixed(2) }}
@@ -93,11 +46,10 @@
     </q-table>
 
     <!-- Diálogo para crear/editar producto -->
-    <q-dialog
-      v-model="showProductDialog"
-      persistent
-      maximized
-    >
+    <q-dialog v-model="showProductDialog">
+      <product-form ref="prodForm" @added="onProductSaved" @saved="onProductSaved" />
+
+
       <q-card style="min-width: 500px; max-width: 90vw;">
         <q-card-section class="row justify-between items-center">
           <div class="text-h6">Crear / Editar producto</div>
@@ -107,10 +59,7 @@
         <q-separator />
 
         <q-card-section>
-          <product-form
-            @added="onProductSaved"
-            @saved="onProductSaved"
-          />
+          <product-form @added="onProductSaved" @saved="onProductSaved" />
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -135,11 +84,11 @@ export default {
       applyTaxes: false,
       showProductDialog: false,
       columns: [
-        { name: 'unit',       label: 'Unidad',        field: 'unit' },
-        { name: 'description',label: 'Descripción',   field: 'description' },
-        { name: 'quantity',   label: 'Cantidad',      field: 'quantity' },
-        { name: 'unit_price', label: 'Valor unitario',field: 'unit_price' },
-        { name: 'total',      label: 'Valor total',   field: 'total' }
+        { name: 'unit', label: 'Unidad', field: 'unit' },
+        { name: 'description', label: 'Descripción', field: 'description' },
+        { name: 'quantity', label: 'Cantidad', field: 'quantity' },
+        { name: 'unit_price', label: 'Valor unitario', field: 'unit_price' },
+        { name: 'total', label: 'Valor total', field: 'total' }
       ]
     }
   },
