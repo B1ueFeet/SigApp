@@ -1,4 +1,3 @@
-<!-- src/components/ClientForm.vue -->
 <template>
     <div class="q-pa-md">
         <q-card flat bordered>
@@ -20,7 +19,6 @@
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount } from 'vue'
 import dbService from 'src/services/db'
 
 export default {
@@ -83,7 +81,7 @@ export default {
         },
         onAction() {
             if (this.selectedClientId > 0) {
-                this.isEditing ? this.saveClient() : this.isEditing = true
+                this.isEditing ? this.saveClient() : (this.isEditing = true)
             } else {
                 this.addClient()
             }

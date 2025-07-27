@@ -8,11 +8,16 @@
         <q-select v-model="selectedProdId" :options="productOptions" option-value="id" option-label="common_name"
           label="Selecciona producto" emit-value map-options style="width: 300px"
           @update:model-value="onSelectProduct" />
-        <q-input v-model.number="itemQuantity" type="number" label="Cantidad" style="width: 80px" />
+
+        <q-input v-model.number="itemQuantity" type="number" label="Cantidad" style="width: 80px"
+          @input="onQuantityInput" />
+
         <q-input v-model="itemPrice" type="text" inputmode="decimal" label="Valor unitario" style="width: 100px"
           @input="onRowPriceInput({ unit_price: itemPrice })" />
+
         <q-btn label="Añadir a cotización" color="primary" @click="addQuotationItem" />
       </q-card-section>
+
       <q-card-section class="row items-center q-gutter-sm">
         <q-checkbox v-model="applyTaxes" label="Incluir IVA (15%)" />
         <q-input v-model.number="discountAmount" type="number" label="Descuento" style="width: 100px" min="0" />
@@ -106,39 +111,34 @@ export default {
         ...item,
         isSummary: false
       }))
-
       const summaryRows = [
         {
-          id: 'summary-1',
+          id: 's1',
           isSummary: true,
           label: 'SUBTOTAL',
           value: `$ ${this.subtotal.toFixed(2)}`
         },
         {
-          id: 'summary-2',
+          id: 's2',
           isSummary: true,
           label: 'IVA (15%)',
           value: `$ ${this.ivaAmount.toFixed(2)}`
         },
         {
-          id: 'summary-3',
+          id: 's3',
           isSummary: true,
           label: 'DESCUENTO',
           value: `- $ ${(Number(this.discountAmount) || 0).toFixed(2)}`
         },
         {
-          id: 'summary-4',
+          id: 's4',
           isSummary: true,
           label: 'TOTAL',
           value: `$ ${this.totalAmount.toFixed(2)}`
         }
       ]
-
-      return dataRows.concat(summaryRows)
+      return [...dataRows, ...summaryRows]
     }
-  },
-  created() {
-    dbService.initDatabase().then(this.loadProductOptions)
   },
   methods: {
     loadProductOptions() {
@@ -171,6 +171,9 @@ export default {
         this.itemPrice = prod ? prod.price : ''
       }
     },
+    onQuantityInput(val) {
+      this.itemQuantity = val
+    },
     onRowPriceInput(row) {
       row.unit_price = (row.unit_price || '').replace(/[^0-9.]/g, '')
     },
@@ -186,7 +189,9 @@ export default {
         })
       }
     },
-    updateRow(row) { },
+    updateRow(row) {
+      // opcional: guardar cambios inmediatos en BD
+    },
     onProductSaved() {
       this.showProductDialog = false
       this.selectedProdId = null
@@ -195,7 +200,17 @@ export default {
     cancelNewProduct() {
       this.showProductDialog = false
       this.selectedProdId = null
+    },
+    onDbImported() {
+      this.loadProductOptions()
     }
+  },
+  mounted() {
+    this.loadProductOptions()
+    window.addEventListener('db-imported', this.onDbImported)
+  },
+  beforeUnmount() {
+    window.removeEventListener('db-imported', this.onDbImported)
   }
 }
 </script>
