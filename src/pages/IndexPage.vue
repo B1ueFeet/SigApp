@@ -5,61 +5,132 @@
 
     <q-card class="q-mt-lg">
       <q-card-section class="row items-center q-gutter-sm">
-        <q-select v-model="selectedProdId" :options="productOptions" option-value="id" option-label="common_name"
-          label="Selecciona producto" emit-value map-options style="width: 300px"
-          @update:model-value="onSelectProduct" />
+        <q-select
+          v-model="selectedProdId"
+          :options="productOptions"
+          option-value="id"
+          option-label="common_name"
+          label="Selecciona producto"
+          emit-value
+          map-options
+          style="width: 300px"
+          @update:model-value="onSelectProduct"
+        />
 
-        <q-input v-model.number="itemQuantity" type="number" label="Cantidad" style="width: 120px"
-          @input="onQuantityInput" />
+        <q-input
+          v-model.number="itemQuantity"
+          type="number"
+          label="Cantidad"
+          style="width: 80px"
+        />
 
-        <q-input v-model="itemPrice" type="text" inputmode="decimal" label="Valor unitario" style="width: 150px"
-          @input="onRowPriceInput({ unit_price: itemPrice, isNew: true })" />
+        <q-input
+          v-model="itemPrice"
+          type="text"
+          inputmode="decimal"
+          label="Valor unitario"
+          style="width: 100px"
+          @input="onRowPriceInput({ unit_price: itemPrice })"
+        />
 
-        <q-btn label="Añadir a cotización" color="primary" @click="addQuotationItem" />
+        <q-btn
+          label="Añadir a cotización"
+          color="primary"
+          @click="addQuotationItem"
+        />
       </q-card-section>
 
-      <q-card-section>
+      <q-card-section class="row items-center q-gutter-sm">
         <q-checkbox v-model="applyTaxes" label="Incluir IVA (12%)" />
+        <q-input
+          v-model.number="discountAmount"
+          type="number"
+          label="Descuento"
+          style="width: 100px"
+          min="0"
+        />
       </q-card-section>
     </q-card>
 
-    <q-table class="q-mt-lg" :rows="quotationItems" :columns="columns" row-key="id" flat bordered>
-      <template v-slot:body-cell-quantity="props">
-        <q-input v-model.number="props.row.quantity" type="number" dense @input="updateRow(props.row)" />
+    <q-table
+      class="q-mt-lg"
+      :rows="quotationItems"
+      :columns="columns"
+      row-key="id"
+      flat
+      bordered
+      dense
+    >
+      <template v-slot:body="props">
+        <q-tr :props="props">
+          <q-td auto-width>{{ props.row.unit }}</q-td>
+          <q-td>
+            <q-input
+              dense
+              v-model="props.row.description"
+              @input="updateRow(props.row)"
+              style="width: 100%;"
+            />
+          </q-td>
+          <q-td auto-width>
+            <q-input
+              dense
+              type="number"
+              v-model.number="props.row.quantity"
+              @input="updateRow(props.row)"
+              style="width: 80px;"
+            />
+          </q-td>
+          <q-td auto-width>
+            <q-input
+              dense
+              inputmode="decimal"
+              v-model="props.row.unit_price"
+              @input="onRowPriceInput(props.row)"
+              style="width: 100px;"
+            />
+          </q-td>
+          <q-td auto-width class="text-right">
+            {{ (props.row.quantity * parseFloat(props.row.unit_price || 0)).toFixed(2) }}
+          </q-td>
+        </q-tr>
       </template>
-      <template v-slot:body-cell-unit_price="props">
-        <q-input v-model="props.row.unit_price" type="text" dense inputmode="decimal"
-          @input="onRowPriceInput(props.row)" />
-      </template>
-      <template v-slot:body-cell-description="props">
-        <q-input v-model="props.row.description" dense @input="updateRow(props.row)" />
-      </template>
-      <template v-slot:body-cell-total="props">
-        {{ (props.row.quantity * parseFloat(props.row.unit_price || 0)).toFixed(2) }}
-      </template>
+
       <template v-slot:bottom>
         <q-tr>
-          <q-td colspan="4" class="text-right">Total cotización</q-td>
-          <q-td>{{ quotationTotal.toFixed(2) }}</q-td>
+          <q-td colspan="4" class="text-right">Subtotal</q-td>
+          <q-td class="text-right">{{ subtotal.toFixed(2) }}</q-td>
+        </q-tr>
+        <q-tr>
+          <q-td colspan="4" class="text-right">IVA (12%)</q-td>
+          <q-td class="text-right">{{ ivaAmount.toFixed(2) }}</q-td>
+        </q-tr>
+        <q-tr>
+          <q-td colspan="4" class="text-right">Descuento</q-td>
+          <q-td class="text-right">
+            -{{ (Number(discountAmount) || 0).toFixed(2) }}
+          </q-td>
+        </q-tr>
+        <q-tr>
+          <q-td colspan="4" class="text-right"><strong>Total</strong></q-td>
+          <q-td class="text-right"><strong>{{ totalAmount.toFixed(2) }}</strong></q-td>
         </q-tr>
       </template>
     </q-table>
 
-    <!-- Diálogo para crear/editar producto -->
-    <q-dialog v-model="showProductDialog">
-      <product-form ref="prodForm" @added="onProductSaved" @saved="onProductSaved" />
-
-
+    <q-dialog v-model="showProductDialog" persistent maximized>
       <q-card style="min-width: 500px; max-width: 90vw;">
         <q-card-section class="row justify-between items-center">
           <div class="text-h6">Crear / Editar producto</div>
           <q-btn icon="close" flat round dense @click="cancelNewProduct" />
         </q-card-section>
-
         <q-separator />
-
         <q-card-section>
-          <product-form @added="onProductSaved" @saved="onProductSaved" />
+          <product-form
+            ref="prodForm"
+            @added="onProductSaved"
+            @saved="onProductSaved"
+          />
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -82,23 +153,29 @@ export default {
       itemPrice: '',
       quotationItems: [],
       applyTaxes: false,
+      discountAmount: 0,
       showProductDialog: false,
       columns: [
-        { name: 'unit', label: 'Unidad', field: 'unit' },
-        { name: 'description', label: 'Descripción', field: 'description' },
-        { name: 'quantity', label: 'Cantidad', field: 'quantity' },
-        { name: 'unit_price', label: 'Valor unitario', field: 'unit_price' },
-        { name: 'total', label: 'Valor total', field: 'total' }
+        { name: 'unit',        label: 'Unidad',         field: 'unit' },
+        { name: 'description', label: 'Descripción',    field: 'description' },
+        { name: 'quantity',    label: 'Cantidad',       field: 'quantity' },
+        { name: 'unit_price',  label: 'Valor unitario', field: 'unit_price' },
+        { name: 'total',       label: 'Valor total',    field: 'total' }
       ]
     }
   },
   computed: {
-    quotationTotal() {
-      const sum = this.quotationItems.reduce((acc, row) => {
-        const val = row.quantity * parseFloat(row.unit_price || 0)
-        return acc + val
-      }, 0)
-      return this.applyTaxes ? sum * 1.12 : sum
+    subtotal() {
+      return this.quotationItems.reduce(
+        (acc, row) => acc + row.quantity * parseFloat(row.unit_price || 0),
+        0
+      )
+    },
+    ivaAmount() {
+      return this.applyTaxes ? this.subtotal * 0.12 : 0
+    },
+    totalAmount() {
+      return this.subtotal + this.ivaAmount - (Number(this.discountAmount) || 0)
     }
   },
   created() {
@@ -106,7 +183,6 @@ export default {
   },
   methods: {
     loadProductOptions() {
-      console.log('Cargando productos')
       const res = dbService.db.exec(`
         SELECT id, common_name, unit, description, price
         FROM products
@@ -123,11 +199,11 @@ export default {
           })
         })
       }
-      console.log('Opciones de producto:', this.productOptions)
     },
     onSelectProduct(val) {
       this.selectedProdId = val
       if (val === 0) {
+        this.$nextTick(() => this.$refs.prodForm.resetSelection())
         this.showProductDialog = true
       } else {
         this.showProductDialog = false
@@ -136,39 +212,28 @@ export default {
         this.itemPrice = prod ? prod.price : ''
       }
     },
-    onQuantityInput(val) {
-      this.itemQuantity = val
-      console.log('Cantidad establecida', val)
-    },
     onRowPriceInput(row) {
       row.unit_price = (row.unit_price || '').replace(/[^0-9.]/g, '')
-      console.log('Valor unitario actualizado', row.unit_price)
     },
     addQuotationItem() {
       if (this.selectedProdId > 0) {
         const prod = this.productOptions.find(p => p.id === this.selectedProdId)
-        const item = {
+        this.quotationItems.push({
           id: Date.now(),
           unit: prod.unit,
           description: prod.description,
           quantity: this.itemQuantity,
           unit_price: this.itemPrice
-        }
-        this.quotationItems.push(item)
-        console.log('Ítem añadido', item)
+        })
       }
     },
-    updateRow(row) {
-      console.log('Fila editada', row)
-    },
+    updateRow(row) {},
     onProductSaved() {
-      console.log('Producto guardado, recargando lista')
       this.showProductDialog = false
       this.selectedProdId = null
       this.loadProductOptions()
     },
     cancelNewProduct() {
-      console.log('Creación de producto cancelada')
       this.showProductDialog = false
       this.selectedProdId = null
     }
