@@ -120,7 +120,7 @@ export default {
                 this.addProduct()
             }
         },
-        addProduct() {
+        async addProduct() {
             console.log('Añadiendo producto', this.form)
             dbService.db.run(
                 'INSERT INTO products (common_name, product_code, description, price, unit, materials) VALUES (?, ?, ?, ?, ?, ?)',
@@ -133,12 +133,13 @@ export default {
                     this.form.materials
                 ]
             )
+            await dbService.save()
             this.loadProducts()
             this.selectedProductId = null
             this.isEditing = false
             this.$emit('added')
         },
-        saveProduct() {
+        async saveProduct() {
             console.log('Guardando cambios producto', this.selectedProductId, this.form)
             dbService.db.run(
                 'UPDATE products SET common_name = ?, product_code = ?, description = ?, price = ?, unit = ?, materials = ? WHERE id = ?',
@@ -152,6 +153,7 @@ export default {
                     this.selectedProductId
                 ]
             )
+            await dbService.save()
             this.loadProducts()
             this.isEditing = false
             this.$emit('saved')

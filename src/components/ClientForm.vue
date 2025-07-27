@@ -86,12 +86,13 @@ export default {
                 this.addClient()
             }
         },
-        addClient() {
+        async addClient() {
             console.log('Añadiendo cliente', this.form)
             dbService.db.run(
                 'INSERT INTO clients (name, phone, sector) VALUES (?, ?, ?)',
                 [this.form.name, this.form.phone, this.form.sector]
             )
+            await dbService.save()
             const res = dbService.db.exec('SELECT last_insert_rowid()')
             const newId = res[0].values[0][0]
             console.log('Cliente añadido con ID', newId)
@@ -99,12 +100,13 @@ export default {
             this.selectedClientId = newId
             this.isEditing = false
         },
-        saveClient() {
+        async saveClient() {
             console.log('Guardando cambios cliente', this.selectedClientId, this.form)
             dbService.db.run(
                 'UPDATE clients SET name = ?, phone = ?, sector = ? WHERE id = ?',
                 [this.form.name, this.form.phone, this.form.sector, this.selectedClientId]
             )
+            await dbService.save()
             console.log('Cliente actualizado')
             this.loadClients()
             this.isEditing = false

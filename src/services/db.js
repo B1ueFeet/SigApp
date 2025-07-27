@@ -1,25 +1,38 @@
-import initSqlJs from 'sql.js'
-
-const SQL = await initSqlJs({ locateFile: file => `https://sql.js.org/dist/${file}` })
+// src/services/db.js
+import localforage from 'localforage'
 
 export default {
+  SQL: null, 
   db: null,
-  async initDatabase () {
-    console.log('Inicializando base de datos')
-    this.db = new SQL.Database()
-    this.createTables()
-    console.log('Base de datos lista')
+
+  // 1) Inicializa usando IndexedDB si existe, o crea y guarda esquema
+  async initDatabase() {
+    if (!this.SQL) {
+      throw new Error('SQL.js no ha sido asignado')
+    }
+
+    const saved = await localforage.getItem('sigapp-db')
+    if (saved) {
+      // cargamos export previo
+      this.db = new this.SQL.Database(new Uint8Array(saved))
+    }
+    else {
+      // arranque limpio
+      this.db = new this.SQL.Database()
+      this.createTables()
+      await this.save()
+    }
   },
-  createTables () {
-    console.log('Creando tablas')
+
+  // crea tu esquema
+  createTables() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
         phone TEXT,
         sector TEXT
-      )
-    `)
+      )`)
     this.db.run(`
       CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,18 +42,22 @@ export default {
         unit TEXT,
         common_name TEXT,
         materials TEXT
-      )
-    `)
-    console.log('Tablas creadas')
+      )`)
   },
-  exportData () {
+
+  // 2) Guarda el estado actual en IndexedDB
+  async save() {
     const data = this.db.export()
-    console.log('Exportando BD', data)
-    return data
+    await localforage.setItem('sigapp-db', data)
   },
-  importDatabase (arrayBuffer) {
-    console.log('Importando base de datos')
-    this.db = new SQL.Database(new Uint8Array(arrayBuffer))
-    console.log('Base de datos importada')
+
+  exportData() {
+    return this.db.export()
+  },
+
+  // 3) Importa un ArrayBuffer y persiste inmediatamente
+  async importDatabase(arrayBuffer) {
+    this.db = new this.SQL.Database(new Uint8Array(arrayBuffer))
+    await this.save()
   }
 }
