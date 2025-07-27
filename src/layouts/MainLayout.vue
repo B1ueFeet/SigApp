@@ -2,41 +2,19 @@
   <q-layout view="lHh Lpr lFf">
     <q-header elevated>
       <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
+        <q-btn flat round dense icon="menu" @click="toggleLeftDrawer" />
 
-        <q-toolbar-title>
-          Quasar App
-        </q-toolbar-title>
+        <q-toolbar-title>SigApp</q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <q-btn flat dense icon="download" label="Exportar BD" @click="exportDatabase" />
+        <q-btn flat dense icon="upload" label="Importar BD" @click="$refs.fileInput.click()" />
+
+        <input ref="fileInput" type="file" accept=".sqlite" style="display:none" @change="onFileChange" />
       </q-toolbar>
     </q-header>
 
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
+    <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
+      <!-- menú lateral -->
     </q-drawer>
 
     <q-page-container>
@@ -46,72 +24,44 @@
 </template>
 
 <script>
-import { defineComponent, ref } from 'vue'
-import EssentialLink from 'components/EssentialLink.vue'
+import { ref } from 'vue'
+import dbService from 'src/services/db'
 
-const linksList = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
-  }
-]
-
-export default defineComponent({
+export default {
   name: 'MainLayout',
+  setup() {
+    const leftDrawerOpen = ref(false)
+    const toggleLeftDrawer = () => { leftDrawerOpen.value = !leftDrawerOpen.value }
 
-  components: {
-    EssentialLink
-  },
-
-  data () {
-    return {
-      linksList,
-      leftDrawerOpen: false
+    const exportDatabase = () => {
+      const data = dbService.exportData()
+      const blob = new Blob([data], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'sigapp-database.sqlite'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     }
-  },
 
-  methods: {
-    toggleLeftDrawer () {
-      this.leftDrawerOpen = !this.leftDrawerOpen
+    const onFileChange = e => {
+      const file = e.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        dbService.importDatabase(reader.result)
+        // disparamos evento para que las páginas recarguen sus datos
+        window.dispatchEvent(new Event('db-imported'))
+      }
+      reader.readAsArrayBuffer(file)
+    }
+
+    return {
+      leftDrawerOpen, toggleLeftDrawer,
+      exportDatabase, onFileChange
     }
   }
-})
+}
 </script>

@@ -1,15 +1,16 @@
 import initSqlJs from 'sql.js'
 
-const SQL = await initSqlJs({ locateFile: f => `https://sql.js.org/dist/${f}` })
+const SQL = await initSqlJs({ locateFile: file => `https://sql.js.org/dist/${file}` })
+
 export default {
   db: null,
-  async initDatabase() {
+  async initDatabase () {
     console.log('Inicializando base de datos')
     this.db = new SQL.Database()
     this.createTables()
     console.log('Base de datos lista')
   },
-  createTables() {
+  createTables () {
     console.log('Creando tablas')
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
@@ -32,9 +33,14 @@ export default {
     `)
     console.log('Tablas creadas')
   },
-  exportData() {
+  exportData () {
     const data = this.db.export()
     console.log('Exportando BD', data)
     return data
+  },
+  importDatabase (arrayBuffer) {
+    console.log('Importando base de datos')
+    this.db = new SQL.Database(new Uint8Array(arrayBuffer))
+    console.log('Base de datos importada')
   }
 }
