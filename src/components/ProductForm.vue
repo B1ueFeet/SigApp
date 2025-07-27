@@ -1,8 +1,9 @@
+<!-- src/components/ProductForm.vue -->
 <template>
     <div class="q-pa-md">
         <q-card flat bordered>
 
-            <!-- CABECERA: selector de producto y código -->
+            <!-- CABECERA: selector de producto, tipo y código -->
             <q-card-section class="row items-center q-col-gutter-md">
                 <q-select v-model="selectedProductId" :options="products" option-value="id" option-label="common_name"
                     label="Selecciona producto" emit-value map-options @input="onProductChange" style="width: 250px" />
@@ -22,7 +23,7 @@
                 <q-select v-model="form.unit" :options="unitOptions" option-value="value" option-label="label"
                     label="Unidad" :disable="fieldsDisabled" />
 
-                <!-- selección múltiple de materiales + botón de nuevo -->
+                <!-- materiales con multi‑select y botón para añadir nuevo -->
                 <div class="row items-center q-col-gutter-sm">
                     <q-select v-model="selectedMaterials" :options="materialOptions" option-value="value"
                         option-label="label" multiple label="Materiales" map-options style="flex:1"
@@ -94,28 +95,36 @@ export default {
         }
     },
     methods: {
+        // --- CORRECCIÓN AQUÍ: declaro `res` antes de usarlo ---
         loadProducts() {
-            this.products = [{ id: 0, common_name: 'Nuevo producto' }]
+            console.log('Cargando productos')
             const res = dbService.db.exec(`
         SELECT id, common_name FROM products
       `)
-                (res[0]?.values || []).forEach(([id, cn]) => {
+            this.products = [{ id: 0, common_name: 'Nuevo producto' }]
+                ; (res[0]?.values || []).forEach(([id, cn]) => {
                     this.products.push({ id, common_name: cn })
                 })
+            console.log('Productos:', this.products)
         },
+
         loadMaterialOptions() {
             this.materialOptions = dbService.loadMaterials()
         },
+
         onMaterialAdded() {
             this.loadMaterialOptions()
             this.showMaterialDialog = false
         },
+
         onMaterialsChange() {
             if (this.selectedProductId > 0) {
-                dbService.setProductMaterials(this.selectedProductId, this.selectedMaterials)
+                dbService
+                    .setProductMaterials(this.selectedProductId, this.selectedMaterials)
                     .then(() => dbService.save())
             }
         },
+
         onProductChange() {
             if (this.selectedProductId > 0) {
                 const stmt = dbService.db.prepare(`
@@ -131,6 +140,7 @@ export default {
                 this.isEditing = false
             }
             else {
+                // Nuevo producto: genero código automáticamente
                 this.form = {
                     common_name: '',
                     product_code: dbService.nextProductCode(this.productType),
@@ -143,6 +153,7 @@ export default {
             }
             this.loadMaterialOptions()
         },
+
         onPriceInput(val) {
             let c = (val || '').replace(/[^0-9.]/g, '')
             const parts = c.split('.')
@@ -150,10 +161,12 @@ export default {
             const [i, d = ''] = c.split('.')
             this.form.price = d ? `${i}.${d.slice(0, 2)}` : i
         },
+
         formatPrice() {
             const n = parseFloat(this.form.price)
             this.form.price = isNaN(n) ? '' : n.toFixed(2)
         },
+
         async onAction() {
             if (this.selectedProductId > 0) {
                 if (this.isEditing) await this.saveProduct()
@@ -163,10 +176,11 @@ export default {
                 await this.addProduct()
             }
         },
+
         async addProduct() {
             dbService.db.run(
                 `INSERT INTO products
-         (common_name, product_code, description, price, unit)
+           (common_name, product_code, description, price, unit)
          VALUES (?, ?, ?, ?, ?)`,
                 [
                     this.form.common_name,
@@ -183,6 +197,7 @@ export default {
             this.isEditing = false
             this.$emit('added')
         },
+
         async saveProduct() {
             dbService.db.run(
                 `UPDATE products SET
@@ -202,6 +217,7 @@ export default {
             this.isEditing = false
             this.$emit('saved')
         },
+
         resetSelection() {
             this.selectedProductId = 0
             this.onProductChange()
