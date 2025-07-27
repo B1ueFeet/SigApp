@@ -5,7 +5,7 @@ export default {
   SQL: null,
   db: null,
 
-  // Inicializa la base, recreando el esquema si falta alguna tabla nueva
+  // Inicializa la base, recreando esquema si falta alguna tabla
   async initDatabase() {
     if (!this.SQL) {
       throw new Error('SQL.js no ha sido asignado')
@@ -13,22 +13,17 @@ export default {
 
     let needsFullRecreate = false
     const saved = await localforage.getItem('sigapp-db')
-
     if (saved) {
-      // Carga el export previo
       this.db = new this.SQL.Database(new Uint8Array(saved))
-
-      // Comprueba si la tabla 'materials' existe
+      // Verifica si la tabla 'materials' existe
       const chk = this.db.exec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='materials';"
       )
       if (!chk[0] || chk[0].values.length === 0) {
-        console.warn('Esquema antiguo detectado: faltan tablas. Recreando esquema.')
         needsFullRecreate = true
       }
     }
     else {
-      // Primera ejecución: no hay nada en IndexedDB
       this.db = new this.SQL.Database()
       needsFullRecreate = true
     }
@@ -39,14 +34,12 @@ export default {
     }
   },
 
-  // Define todas las tablas (clients, products, materials, product_material)
+  // Crea todas las tablas
   createTables() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        phone TEXT,
-        sector TEXT
+        name TEXT, phone TEXT, sector TEXT
       );
     `)
     this.db.run(`
@@ -70,29 +63,27 @@ export default {
       CREATE TABLE IF NOT EXISTS product_material (
         product_id INTEGER,
         material_id INTEGER,
-        PRIMARY KEY(product_id, material_id)
+        PRIMARY KEY (product_id, material_id)
       );
     `)
   },
 
-  // Persiste el export de la base en IndexedDB
+  // Persiste el estado en IndexedDB
   async save() {
     const data = this.db.export()
     await localforage.setItem('sigapp-db', data)
   },
 
-  // Para exportar manualmente
   exportData() {
     return this.db.export()
   },
 
-  // Importa un ArrayBuffer y persiste
   async importDatabase(buf) {
     this.db = new this.SQL.Database(new Uint8Array(buf))
     await this.save()
   },
 
-  // Genera el siguiente product_code para un prefijo dado (P, M o S)
+  // Genera el siguiente código P/M/S
   nextProductCode(prefix) {
     const stmt = this.db.prepare(`
       SELECT product_code
@@ -104,28 +95,23 @@ export default {
     stmt.bind([`${prefix}%`])
     let next = 1
     if (stmt.step()) {
-      const last = stmt.getAsObject().product_code   // ej. "P00010"
-      const num = parseInt(last.slice(1), 10)
-      next = num + 1
+      const last = stmt.getAsObject().product_code
+      next = parseInt(last.slice(1), 10) + 1
     }
     stmt.free()
     return prefix + String(next).padStart(4, '0')
   },
 
-  // Carga todos los materials: devuelve [{ id, name, description }]
   loadMaterials() {
     const res = this.db.exec(`
       SELECT id, name, description
       FROM materials
     `)
     return (res[0]?.values || []).map(([id, name, desc]) => ({
-      id,
-      name,
-      description: desc
+      id, name, description: desc
     }))
   },
 
-  // Carga los IDs de materiales asociados a un producto
   loadProductMaterials(productId) {
     const stmt = this.db.prepare(`
       SELECT material_id
@@ -141,23 +127,27 @@ export default {
     return ids
   },
 
-  // Guarda la relación muchos-a-muchos product↔material
   async saveProductMaterials(productId, materialIds) {
+    // 1) Borro los viejos
     this.db.run(
-      `DELETE FROM product_material
-       WHERE product_id = ?`,
+      'DELETE FROM product_material WHERE product_id = ?',
       [productId]
     )
-    const ins = this.db.prepare(`
-      INSERT INTO product_material (product_id, material_id)
-      VALUES (?, ?)
-    `)
-    for (const mId of materialIds) {
-      ins.bind([productId, mId])
-      ins.step()
-      ins.reset()
+
+    // 2) Inserto cada relación con db.run (que bindea bien el array)
+    for (const m of materialIds) {
+      // si vienen como objeto, extraigo el id
+      const mid = (typeof m === 'object' && m != null)
+        ? (m.id ?? m.value)
+        : m
+
+      this.db.run(
+        'INSERT INTO product_material (product_id, material_id) VALUES (?, ?)',
+        [productId, mid]
+      )
     }
-    ins.free()
+
+    // 3) Persisto en IndexedDB
     await this.save()
-  }
+  },
 }

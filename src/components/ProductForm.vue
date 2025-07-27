@@ -6,16 +6,15 @@
             <!-- CABECERA: selector de producto, tipo y código -->
             <q-card-section class="row items-center q-col-gutter-md">
                 <q-select v-model="selectedProductId" :options="products" option-value="id" option-label="common_name"
-                    label="Selecciona producto" emit-value map-options @input="onProductChange" style="width: 250px" />
+                    label="Selecciona producto" emit-value map-options style="width: 250px" />
 
-                <!-- AÑADIDO emit-value y map-options para que productType sea solo el valor (P/S/M) -->
                 <q-select v-model="productType" :options="typeOptions" option-value="value" option-label="label"
                     emit-value map-options label="Tipo" :disable="selectedProductId > 0" style="width: 200px" />
 
                 <q-input v-model="form.product_code" label="Código" readonly style="width: 160px" />
             </q-card-section>
 
-            <!-- resto del formulario igual -->
+            <!-- CUERPO: datos básicos -->
             <q-card-section>
                 <q-input v-model="form.common_name" label="Nombre común" :disable="fieldsDisabled" />
                 <q-input v-model="form.description" label="Descripción" :disable="fieldsDisabled" />
@@ -24,6 +23,7 @@
                 <q-select v-model="form.unit" :options="unitOptions" option-value="value" option-label="label"
                     label="Unidad" :disable="fieldsDisabled" />
 
+                <!-- Materiales con tabla y checkboxes -->
                 <div class="q-mt-md">
                     <div class="text-subtitle1">Materiales</div>
                     <q-table :rows="materialOptions" row-key="id" flat dense class="q-mt-sm">
@@ -51,6 +51,7 @@
                 </div>
             </q-card-section>
 
+            <!-- ACCIONES -->
             <q-card-actions align="right">
                 <q-btn :label="buttonLabel" color="primary" @click="onAction" />
                 <q-btn v-if="selectedProductId > 0" flat label="Cancelar" @click="resetSelection" />
@@ -58,6 +59,7 @@
 
         </q-card>
 
+        <!-- DIÁLOGO PARA CREAR NUEVO MATERIAL -->
         <q-dialog v-model="showMaterialDialog">
             <q-card>
                 <q-card-section>
@@ -102,6 +104,9 @@ export default {
         }
     },
     watch: {
+        selectedProductId() {
+            this.onProductChange()
+        },
         productType(newType) {
             if (this.selectedProductId === 0) {
                 this.form.product_code = dbService.nextProductCode(newType)
@@ -155,7 +160,9 @@ export default {
           FROM products WHERE id = ?
         `)
                 stmt.bind([this.selectedProductId])
-                if (stmt.step()) this.form = stmt.getAsObject()
+                if (stmt.step()) {
+                    this.form = stmt.getAsObject()
+                }
                 stmt.free()
                 this.productType = this.form.product_code.charAt(0)
                 this.selectedMaterials = dbService.loadProductMaterials(this.selectedProductId)
