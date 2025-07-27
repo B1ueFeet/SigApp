@@ -8,13 +8,14 @@
                 <q-select v-model="selectedProductId" :options="products" option-value="id" option-label="common_name"
                     label="Selecciona producto" emit-value map-options @input="onProductChange" style="width: 250px" />
 
+                <!-- AÑADIDO emit-value y map-options para que productType sea solo el valor (P/S/M) -->
                 <q-select v-model="productType" :options="typeOptions" option-value="value" option-label="label"
-                    label="Tipo" :disable="selectedProductId > 0" style="width: 200px" />
+                    emit-value map-options label="Tipo" :disable="selectedProductId > 0" style="width: 200px" />
 
                 <q-input v-model="form.product_code" label="Código" readonly style="width: 160px" />
             </q-card-section>
 
-            <!-- CUERPO: datos básicos -->
+            <!-- resto del formulario igual -->
             <q-card-section>
                 <q-input v-model="form.common_name" label="Nombre común" :disable="fieldsDisabled" />
                 <q-input v-model="form.description" label="Descripción" :disable="fieldsDisabled" />
@@ -23,16 +24,33 @@
                 <q-select v-model="form.unit" :options="unitOptions" option-value="value" option-label="label"
                     label="Unidad" :disable="fieldsDisabled" />
 
-                <!-- materiales con multi‑select y botón para añadir nuevo -->
-                <div class="row items-center q-col-gutter-sm">
-                    <q-select v-model="selectedMaterials" :options="materialOptions" option-value="value"
-                        option-label="label" multiple label="Materiales" map-options style="flex:1"
-                        @blur="onMaterialsChange" :disable="fieldsDisabled" />
-                    <q-btn round dense flat icon="add" @click="showMaterialDialog = true" :disable="fieldsDisabled" />
+                <div class="q-mt-md">
+                    <div class="text-subtitle1">Materiales</div>
+                    <q-table :rows="materialOptions" row-key="id" flat dense class="q-mt-sm">
+                        <template v-slot:header>
+                            <q-tr>
+                                <q-th style="width: 60px">Incl.</q-th>
+                                <q-th>Nombre</q-th>
+                                <q-th>Descripción</q-th>
+                            </q-tr>
+                        </template>
+                        <template v-slot:body="props">
+                            <q-tr :props="props">
+                                <q-td>
+                                    <q-checkbox :model-value="selectedMaterials.includes(props.row.id)"
+                                        @update:model-value="val => onMaterialCheck(props.row.id, val)"
+                                        :disable="fieldsDisabled" />
+                                </q-td>
+                                <q-td>{{ props.row.name }}</q-td>
+                                <q-td>{{ props.row.description }}</q-td>
+                            </q-tr>
+                        </template>
+                    </q-table>
+                    <q-btn label="Nuevo material" icon="add" flat class="q-mt-sm" @click="showMaterialDialog = true"
+                        :disable="fieldsDisabled" />
                 </div>
             </q-card-section>
 
-            <!-- ACCIONES -->
             <q-card-actions align="right">
                 <q-btn :label="buttonLabel" color="primary" @click="onAction" />
                 <q-btn v-if="selectedProductId > 0" flat label="Cancelar" @click="resetSelection" />
@@ -40,7 +58,6 @@
 
         </q-card>
 
-        <!-- DIÁLOGO PARA CREAR NUEVO MATERIAL -->
         <q-dialog v-model="showMaterialDialog">
             <q-card>
                 <q-card-section>
@@ -84,6 +101,13 @@ export default {
             ]
         }
     },
+    watch: {
+        productType(newType) {
+            if (this.selectedProductId === 0) {
+                this.form.product_code = dbService.nextProductCode(newType)
+            }
+        }
+    },
     computed: {
         fieldsDisabled() {
             return this.selectedProductId > 0 ? !this.isEditing : false
@@ -95,36 +119,35 @@ export default {
         }
     },
     methods: {
-        // --- CORRECCIÓN AQUÍ: declaro `res` antes de usarlo ---
         loadProducts() {
-            console.log('Cargando productos')
-            const res = dbService.db.exec(`
-        SELECT id, common_name FROM products
-      `)
+            const res = dbService.db.exec(`SELECT id, common_name FROM products`)
             this.products = [{ id: 0, common_name: 'Nuevo producto' }]
                 ; (res[0]?.values || []).forEach(([id, cn]) => {
                     this.products.push({ id, common_name: cn })
                 })
-            console.log('Productos:', this.products)
         },
-
         loadMaterialOptions() {
             this.materialOptions = dbService.loadMaterials()
         },
-
         onMaterialAdded() {
             this.loadMaterialOptions()
             this.showMaterialDialog = false
         },
-
+        onMaterialCheck(materialId, checked) {
+            const idx = this.selectedMaterials.indexOf(materialId)
+            if (checked && idx === -1) {
+                this.selectedMaterials.push(materialId)
+            } else if (!checked && idx !== -1) {
+                this.selectedMaterials.splice(idx, 1)
+            }
+            this.onMaterialsChange()
+        },
         onMaterialsChange() {
             if (this.selectedProductId > 0) {
-                dbService
-                    .setProductMaterials(this.selectedProductId, this.selectedMaterials)
+                dbService.saveProductMaterials(this.selectedProductId, this.selectedMaterials)
                     .then(() => dbService.save())
             }
         },
-
         onProductChange() {
             if (this.selectedProductId > 0) {
                 const stmt = dbService.db.prepare(`
@@ -134,13 +157,10 @@ export default {
                 stmt.bind([this.selectedProductId])
                 if (stmt.step()) this.form = stmt.getAsObject()
                 stmt.free()
-
                 this.productType = this.form.product_code.charAt(0)
                 this.selectedMaterials = dbService.loadProductMaterials(this.selectedProductId)
                 this.isEditing = false
-            }
-            else {
-                // Nuevo producto: genero código automáticamente
+            } else {
                 this.form = {
                     common_name: '',
                     product_code: dbService.nextProductCode(this.productType),
@@ -153,7 +173,6 @@ export default {
             }
             this.loadMaterialOptions()
         },
-
         onPriceInput(val) {
             let c = (val || '').replace(/[^0-9.]/g, '')
             const parts = c.split('.')
@@ -161,22 +180,18 @@ export default {
             const [i, d = ''] = c.split('.')
             this.form.price = d ? `${i}.${d.slice(0, 2)}` : i
         },
-
         formatPrice() {
             const n = parseFloat(this.form.price)
             this.form.price = isNaN(n) ? '' : n.toFixed(2)
         },
-
         async onAction() {
             if (this.selectedProductId > 0) {
                 if (this.isEditing) await this.saveProduct()
                 else this.isEditing = true
-            }
-            else {
+            } else {
                 await this.addProduct()
             }
         },
-
         async addProduct() {
             dbService.db.run(
                 `INSERT INTO products
@@ -191,13 +206,12 @@ export default {
                 ]
             )
             const newId = dbService.db.exec('SELECT last_insert_rowid()')[0].values[0][0]
-            await dbService.setProductMaterials(newId, this.selectedMaterials)
+            await dbService.saveProductMaterials(newId, this.selectedMaterials)
             await dbService.save()
             this.selectedProductId = newId
             this.isEditing = false
             this.$emit('added')
         },
-
         async saveProduct() {
             dbService.db.run(
                 `UPDATE products SET
@@ -212,12 +226,11 @@ export default {
                     this.selectedProductId
                 ]
             )
-            await dbService.setProductMaterials(this.selectedProductId, this.selectedMaterials)
+            await dbService.saveProductMaterials(this.selectedProductId, this.selectedMaterials)
             await dbService.save()
             this.isEditing = false
             this.$emit('saved')
         },
-
         resetSelection() {
             this.selectedProductId = 0
             this.onProductChange()
