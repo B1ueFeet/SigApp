@@ -5,36 +5,33 @@ export default {
   SQL: null,
   db: null,
 
-  // Inicializa la base, recreando esquema si falta alguna tabla
   async initDatabase() {
-    if (!this.SQL) {
-      throw new Error('SQL.js no ha sido asignado')
-    }
+    if (!this.SQL) throw new Error('SQL.js no ha sido asignado')
 
-    let needsFullRecreate = false
+    let needsRecreate = false
     const saved = await localforage.getItem('sigapp-db')
+
     if (saved) {
       this.db = new this.SQL.Database(new Uint8Array(saved))
-      // Verifica si la tabla 'materials' existe
+      // Si no existe la tabla materials, recreamos todo
       const chk = this.db.exec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='materials';"
       )
       if (!chk[0] || chk[0].values.length === 0) {
-        needsFullRecreate = true
+        needsRecreate = true
       }
     }
     else {
       this.db = new this.SQL.Database()
-      needsFullRecreate = true
+      needsRecreate = true
     }
 
-    if (needsFullRecreate) {
+    if (needsRecreate) {
       this.createTables()
       await this.save()
     }
   },
 
-  // Crea todas las tablas
   createTables() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
@@ -63,12 +60,11 @@ export default {
       CREATE TABLE IF NOT EXISTS product_material (
         product_id INTEGER,
         material_id INTEGER,
-        PRIMARY KEY (product_id, material_id)
+        PRIMARY KEY(product_id, material_id)
       );
     `)
   },
 
-  // Persiste el estado en IndexedDB
   async save() {
     const data = this.db.export()
     await localforage.setItem('sigapp-db', data)
@@ -83,7 +79,6 @@ export default {
     await this.save()
   },
 
-  // Genera el siguiente código P/M/S
   nextProductCode(prefix) {
     const stmt = this.db.prepare(`
       SELECT product_code
@@ -113,41 +108,31 @@ export default {
   },
 
   loadProductMaterials(productId) {
-    const stmt = this.db.prepare(`
+    const res = this.db.exec(`
       SELECT material_id
       FROM product_material
-      WHERE product_id = ?
+      WHERE product_id = ${productId}
     `)
-    stmt.bind([productId])
-    const ids = []
-    while (stmt.step()) {
-      ids.push(stmt.get()[0])
-    }
-    stmt.free()
-    return ids
+    return (res[0]?.values || []).map(([mid]) => mid)
   },
 
+  // ★ SOBREESCRIBE por completo con db.run ★
   async saveProductMaterials(productId, materialIds) {
-    // 1) Borro los viejos
+    // Borra viejos
     this.db.run(
       'DELETE FROM product_material WHERE product_id = ?',
       [productId]
     )
 
-    // 2) Inserto cada relación con db.run (que bindea bien el array)
-    for (const m of materialIds) {
-      // si vienen como objeto, extraigo el id
-      const mid = (typeof m === 'object' && m != null)
-        ? (m.id ?? m.value)
-        : m
-
+    // Inserta nuevos (db.run bindea correctamente)
+    materialIds.forEach(mid => {
       this.db.run(
         'INSERT INTO product_material (product_id, material_id) VALUES (?, ?)',
         [productId, mid]
       )
-    }
+    })
 
-    // 3) Persisto en IndexedDB
+    // Persiste
     await this.save()
-  },
+  }
 }
