@@ -6,10 +6,11 @@
             <!-- CABECERA: selector de producto, tipo y código -->
             <q-card-section class="row items-center q-col-gutter-md">
                 <q-select v-model="selectedProductId" :options="products" option-value="id" option-label="common_name"
-                    label="Selecciona producto" emit-value map-options style="width: 250px" />
+                    label="Selecciona producto" emit-value map-options @update:model-value="onProductChange"
+                    style="width: 250px" />
 
                 <q-select v-model="productType" :options="typeOptions" option-value="value" option-label="label"
-                    emit-value map-options label="Tipo" :disable="selectedProductId > 0" style="width: 200px" />
+                    label="Tipo" emit-value map-options :disable="selectedProductId > 0" style="width: 200px" />
 
                 <q-input v-model="form.product_code" label="Código" readonly style="width: 160px" />
             </q-card-section>
@@ -85,7 +86,13 @@ export default {
             products: [],
             selectedProductId: 0,
             productType: 'P',
-            form: { common_name: '', product_code: '', description: '', price: '', unit: '' },
+            form: {
+                common_name: '',
+                product_code: '',
+                description: '',
+                price: '',
+                unit: ''
+            },
             selectedMaterials: [],
             materialOptions: [],
             isEditing: false,
@@ -104,9 +111,7 @@ export default {
         }
     },
     watch: {
-        selectedProductId() {
-            this.onProductChange()
-        },
+        // Recalcula el código cada vez que cambie el tipo, solo en nuevo
         productType(newType) {
             if (this.selectedProductId === 0) {
                 this.form.product_code = dbService.nextProductCode(newType)
@@ -153,21 +158,23 @@ export default {
                     .then(() => dbService.save())
             }
         },
-        onProductChange() {
-            if (this.selectedProductId > 0) {
+        onProductChange(id) {
+            if (id > 0) {
                 const stmt = dbService.db.prepare(`
           SELECT common_name, product_code, description, price, unit
           FROM products WHERE id = ?
         `)
-                stmt.bind([this.selectedProductId])
+                stmt.bind([id])
                 if (stmt.step()) {
                     this.form = stmt.getAsObject()
                 }
                 stmt.free()
                 this.productType = this.form.product_code.charAt(0)
-                this.selectedMaterials = dbService.loadProductMaterials(this.selectedProductId)
+                this.selectedMaterials = dbService.loadProductMaterials(id)
                 this.isEditing = false
-            } else {
+            }
+            else {
+                // Nuevo producto: reinicializa form y genera código
                 this.form = {
                     common_name: '',
                     product_code: dbService.nextProductCode(this.productType),
@@ -200,6 +207,7 @@ export default {
             }
         },
         async addProduct() {
+            // Inserta producto
             dbService.db.run(
                 `INSERT INTO products
            (common_name, product_code, description, price, unit)
@@ -213,6 +221,7 @@ export default {
                 ]
             )
             const newId = dbService.db.exec('SELECT last_insert_rowid()')[0].values[0][0]
+            // Asocia materiales
             await dbService.saveProductMaterials(newId, this.selectedMaterials)
             await dbService.save()
             this.selectedProductId = newId
@@ -220,6 +229,7 @@ export default {
             this.$emit('added')
         },
         async saveProduct() {
+            // Actualiza producto
             dbService.db.run(
                 `UPDATE products SET
            common_name = ?, product_code = ?, description = ?, price = ?, unit = ?
@@ -233,6 +243,7 @@ export default {
                     this.selectedProductId
                 ]
             )
+            // Actualiza relación materiales
             await dbService.saveProductMaterials(this.selectedProductId, this.selectedMaterials)
             await dbService.save()
             this.isEditing = false
@@ -240,7 +251,7 @@ export default {
         },
         resetSelection() {
             this.selectedProductId = 0
-            this.onProductChange()
+            this.onProductChange(0)
         }
     },
     mounted() {
