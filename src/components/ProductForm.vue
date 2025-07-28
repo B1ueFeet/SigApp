@@ -21,8 +21,8 @@
                 <q-input v-model="form.description" label="Descripción" :disable="fieldsDisabled" />
                 <q-input v-model="form.price" label="Precio" type="text" inputmode="decimal" maxlength="15"
                     :disable="fieldsDisabled" @input="onPriceInput" @blur="formatPrice" />
-                <q-select v-model="form.unit" :options="unitOptions" option-value="value" option-label="label"
-                    label="Unidad" :disable="fieldsDisabled" />
+                <q-select v-model="form.unit" :options="unitOptions" option-value="value" emit-value map-options
+                    option-label="label" label="Unidad" :disable="fieldsDisabled" />
 
                 <!-- Materiales con tabla y checkboxes -->
                 <div class="q-mt-md">
@@ -198,12 +198,21 @@ export default {
             const n = parseFloat(this.form.price)
             this.form.price = isNaN(n) ? '' : n.toFixed(2)
         },
+        // en tu ProductForm.vue, dentro de onAction:
         async onAction() {
-            if (this.selectedProductId > 0) {
-                if (this.isEditing) await this.saveProduct()
-                else this.isEditing = true
-            } else {
-                await this.addProduct()
+            try {
+                if (this.selectedProductId > 0) {
+                    if (this.isEditing) await this.saveProduct()
+                    else this.isEditing = true
+                } else {
+                    await this.addProduct()
+                }
+            }
+            catch (err) {
+                this.$q.notify({
+                    type: 'negative',
+                    message: `Error al guardar producto: ${err.message}`
+                })
             }
         },
         async addProduct() {

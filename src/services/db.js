@@ -1,11 +1,9 @@
-// src/services/db.js
 import localforage from 'localforage'
 
 export default {
   SQL: null,
   db: null,
 
-  // 1) Inicializa o recrea el esquema si falta alguna tabla nueva
   async initDatabase() {
     if (!this.SQL) throw new Error('SQL.js no ha sido asignado')
 
@@ -14,7 +12,6 @@ export default {
 
     if (saved) {
       this.db = new this.SQL.Database(new Uint8Array(saved))
-      // ¿Está materials? Si no, recreamos TODO
       const chk = this.db.exec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='materials';"
       )
@@ -34,7 +31,6 @@ export default {
     }
   },
 
-  // 2) Define el esquema
   createTables() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
@@ -68,7 +64,6 @@ export default {
     `)
   },
 
-  // 3) Persistencia en IndexedDB
   async save() {
     const data = this.db.export()
     await localforage.setItem('sigapp-db', data)
@@ -83,7 +78,6 @@ export default {
     await this.save()
   },
 
-  // 4) Generación de códigos sin usar prepare()
   nextProductCode(prefix) {
     const res = this.db.exec(`
       SELECT product_code
@@ -121,35 +115,49 @@ export default {
     return (res[0]?.values || []).map(([mid]) => mid)
   },
 
-  // 6) Escritura muchos‑a‑muchos con db.run y LOGS de depuración
   async saveProductMaterials(productId, materialIds) {
-    console.log(
-      '%c saveProductMaterials:',
-      'color: teal; font-weight: bold;',
-      { productId, materialIds }
-    )
+    try {
+      const raw = Array.isArray(materialIds)
+        ? [...materialIds]
+        : []
+      const validIds = raw
+        .map(m => {
+          if (m != null && typeof m === 'object') {
+            return Number(m.id ?? m.value)
+          }
+          return Number(m)
+        })
+        .filter(n => !isNaN(n))
 
-    // Borra anteriores
-    this.db.run(
-      'DELETE FROM product_material WHERE product_id = ?',
-      [productId]
-    )
-
-    // Inserta cada pareja
-    for (const m of materialIds) {
-      // Asegúrate de extraer el número si te llega un objeto
-      const mid = (typeof m === 'object' && m !== null)
-        ? (m.id ?? m.value)
-        : m
-
-      console.log(`  → insert [${productId}, ${mid}] (typeof mid = ${typeof mid})`)
-      this.db.run(
-        'INSERT INTO product_material (product_id, material_id) VALUES (?, ?)',
-        [productId, mid]
+      console.log(
+        '%c[db] saveProductMaterials →',
+        'color: teal; font-weight: bold;',
+        { productId, validIds }
       )
-    }
 
-    // Persiste
-    await this.save()
+      this.db.run(
+        'DELETE FROM product_material WHERE product_id = ?',
+        [productId]
+      )
+
+      for (const mid of validIds) {
+        console.log(`  insert (product=${productId}, material=${mid})`)
+        this.db.run(
+          'INSERT INTO product_material (product_id, material_id) VALUES (?, ?)',
+          [productId, mid]
+        )
+      }
+
+      // 5) Persiste
+      await this.save()
+    }
+    catch (err) {
+      console.error(
+        '[db] ERROR en saveProductMaterials',
+        err,
+        { productId, materialIds }
+      )
+      throw err
+    }
   }
 }
