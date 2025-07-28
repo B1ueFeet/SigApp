@@ -33,11 +33,11 @@
           </q-td>
           <q-td auto-width>
             <q-input dense type="number" v-model.number="props.row.quantity" @input="updateRow(props.row)"
-              style="width: 80px;" />
+              style="width: 50px;" />
           </q-td>
           <q-td auto-width>
             <q-input dense inputmode="decimal" v-model="props.row.unit_price" @input="onRowPriceInput(props.row)"
-              style="width: 100px;" />
+              style="width: 200px;" />
           </q-td>
           <q-td auto-width class="text-right">
             {{ (props.row.quantity * parseFloat(props.row.unit_price || 0)).toFixed(2) }}
@@ -85,11 +85,11 @@ export default {
       discountAmount: 0,
       showProductDialog: false,
       columns: [
-        { name: 'unit', label: 'Unidad', field: 'unit' },
+        { name: 'unit', label: 'U.', field: 'unit' },
         { name: 'description', label: 'Descripción', field: 'description' },
         { name: 'quantity', label: 'Cantidad', field: 'quantity' },
-        { name: 'unit_price', label: 'Valor unitario', field: 'unit_price' },
-        { name: 'total', label: 'Valor total', field: 'total' }
+        { name: 'unit_price', label: 'V. unitario', field: 'unit_price' },
+        { name: 'total', label: 'V. total', field: 'total' }
       ]
     }
   },

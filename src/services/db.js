@@ -159,5 +159,13 @@ export default {
       )
       throw err
     }
+  },
+  async updateMaterial(id, name, description) {
+    this.db.run(
+      'UPDATE materials SET name = ?, description = ? WHERE id = ?',
+      [name, description, id]
+    );
+    await this.save();
   }
+
 }
