@@ -3,7 +3,8 @@
         <q-card flat bordered>
             <q-card-section>
                 <q-select v-model="selectedClientId" :options="clients" option-value="id" option-label="name"
-                    label="Selecciona cliente o crea uno nuevo" emit-value map-options />
+                    label="Selecciona cliente o crea uno nuevo" emit-value map-options
+                    @blur="$emit('onClientSelected', this.form)" />
                 <q-input v-model="form.name" label="Nombre" :disable="fieldsDisabled" />
                 <q-input v-model="form.phone" label="Teléfono" type="text" inputmode="numeric" maxlength="10"
                     :disable="fieldsDisabled" @input="onPhoneInput" />
@@ -26,6 +27,7 @@ export default {
     data() {
         return {
             clients: [],
+            cliente: {},
             selectedClientId: null,
             form: { name: '', phone: '', sector: '' },
             isEditing: false
@@ -58,6 +60,7 @@ export default {
         },
         onClientChange() {
             console.log('Cliente seleccionado:', this.selectedClientId)
+
             if (this.selectedClientId > 0) {
                 const stmt = dbService.db.prepare(
                     'SELECT name, phone, sector FROM clients WHERE id = ?'
@@ -66,6 +69,7 @@ export default {
                 if (stmt.step()) {
                     this.form = stmt.getAsObject()
                     console.log('Datos cliente:', this.form)
+                    this.cliente = this.form
                 }
                 stmt.free()
                 this.isEditing = false
