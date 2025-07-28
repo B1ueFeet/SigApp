@@ -5,6 +5,7 @@ export default {
   SQL: null,
   db: null,
 
+  // 1) Inicializa o recrea el esquema si falta alguna tabla nueva
   async initDatabase() {
     if (!this.SQL) throw new Error('SQL.js no ha sido asignado')
 
@@ -13,11 +14,12 @@ export default {
 
     if (saved) {
       this.db = new this.SQL.Database(new Uint8Array(saved))
-      // Si no existe la tabla materials, recreamos todo
+      // ¿Está materials? Si no, recreamos TODO
       const chk = this.db.exec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='materials';"
       )
       if (!chk[0] || chk[0].values.length === 0) {
+        console.warn('Esquema antiguo detectado — recreando tablas.')
         needsRecreate = true
       }
     }
@@ -32,6 +34,7 @@ export default {
     }
   },
 
+  // 2) Define el esquema
   createTables() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS clients (
@@ -65,6 +68,7 @@ export default {
     `)
   },
 
+  // 3) Persistencia en IndexedDB
   async save() {
     const data = this.db.export()
     await localforage.setItem('sigapp-db', data)
@@ -79,32 +83,33 @@ export default {
     await this.save()
   },
 
+  // 4) Generación de códigos sin usar prepare()
   nextProductCode(prefix) {
-    const stmt = this.db.prepare(`
+    const res = this.db.exec(`
       SELECT product_code
       FROM products
-      WHERE product_code LIKE ?
+      WHERE product_code LIKE '${prefix}%'
       ORDER BY product_code DESC
       LIMIT 1
     `)
-    stmt.bind([`${prefix}%`])
     let next = 1
-    if (stmt.step()) {
-      const last = stmt.getAsObject().product_code
-      next = parseInt(last.slice(1), 10) + 1
+    if (res[0]?.values.length) {
+      const last = res[0].values[0][0]   // por ejemplo "P00010"
+      const num = parseInt(last.slice(1), 10)
+      next = num + 1
     }
-    stmt.free()
     return prefix + String(next).padStart(4, '0')
   },
 
+  // 5) Lecturas
   loadMaterials() {
     const res = this.db.exec(`
       SELECT id, name, description
       FROM materials
     `)
-    return (res[0]?.values || []).map(([id, name, desc]) => ({
-      id, name, description: desc
-    }))
+    return (res[0]?.values || []).map(
+      ([id, name, desc]) => ({ id, name, description: desc })
+    )
   },
 
   loadProductMaterials(productId) {
@@ -116,21 +121,33 @@ export default {
     return (res[0]?.values || []).map(([mid]) => mid)
   },
 
-  // ★ SOBREESCRIBE por completo con db.run ★
+  // 6) Escritura muchos‑a‑muchos con db.run y LOGS de depuración
   async saveProductMaterials(productId, materialIds) {
-    // Borra viejos
+    console.log(
+      '%c saveProductMaterials:',
+      'color: teal; font-weight: bold;',
+      { productId, materialIds }
+    )
+
+    // Borra anteriores
     this.db.run(
       'DELETE FROM product_material WHERE product_id = ?',
       [productId]
     )
 
-    // Inserta nuevos (db.run bindea correctamente)
-    materialIds.forEach(mid => {
+    // Inserta cada pareja
+    for (const m of materialIds) {
+      // Asegúrate de extraer el número si te llega un objeto
+      const mid = (typeof m === 'object' && m !== null)
+        ? (m.id ?? m.value)
+        : m
+
+      console.log(`  → insert [${productId}, ${mid}] (typeof mid = ${typeof mid})`)
       this.db.run(
         'INSERT INTO product_material (product_id, material_id) VALUES (?, ?)',
         [productId, mid]
       )
-    })
+    }
 
     // Persiste
     await this.save()
