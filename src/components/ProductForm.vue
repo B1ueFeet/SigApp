@@ -143,6 +143,8 @@ export default {
             const mats = dbService.loadMaterials()
             this.originalMaterials = mats.map(m => ({ ...m }))
             this.materialOptions = mats.map(m => ({ ...m }))
+            console.log('Materiales cargados:', this.materialOptions)
+            console.log('Materiales originales:', this.originalMaterials)
         },
         onMaterialAdded() {
             this.loadMaterialOptions()
