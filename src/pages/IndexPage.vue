@@ -328,12 +328,43 @@ export default {
       doc.text(`${city || 'Ciudad desconocida'}, ${dateStr}`, pageWidth - 40, logoY + 50, { align: 'right' })
 
       const startY = logoY + 80
+      const labelX = indent
+      // calculamos dinámicamente el ancho de la etiqueta más larga
+      doc.setFont('helvetica', 'bold')
+      const labels = ['Sr(a):', 'Dirección:', 'Telf.:', 'Pago:']
+      const maxLabelWidth = Math.max(...labels.map(l => doc.getTextWidth(l)))
+      const valueX = labelX + maxLabelWidth + 20  // 10pt de espacio entre label y valor
+
       doc.setFontSize(11)
-      doc.text(`Sr(a).:   \t${this.cliente.name}`, indent, startY)
-      doc.text(`Dirección:\t${this.cliente.sector}`, indent, startY + 15)
-      doc.text(`Telf.:    \t${this.cliente.phone}`, indent, startY + 30)
-      const pago = 'Por Acordar'
-      doc.text(`Pago:     \t${pago}`, indent, startY + 45)
+
+      // Sr(a).
+      const y0 = startY
+      doc.setFont('helvetica', 'bold')
+      doc.text('Sr(a):', labelX, y0)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${this.cliente.name || 'A Quien Corresponda'}`, valueX, y0)
+
+      // Dirección
+      const y1 = startY + 15
+      doc.setFont('helvetica', 'bold')
+      doc.text('Dirección:', labelX, y1)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${this.cliente.sector || city}`, valueX, y1)
+
+      // Teléfono
+      const y2 = startY + 30
+      doc.setFont('helvetica', 'bold')
+      doc.text('Telf.:', labelX, y2)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${this.cliente.phone || '---------------'}`, valueX, y2)
+
+      // Pago
+      const y3 = startY + 45
+      doc.setFont('helvetica', 'bold')
+      doc.text('Pago:', labelX, y3)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Por Acordar', valueX, y3)
+
 
       const cols = [
         { header: 'U.', dataKey: 'unit' },
@@ -351,13 +382,13 @@ export default {
       }))
 
 
-      const tableWidth = pageWidth - indent - 10
+      const tableWidth = pageWidth - indent
       const colWidths = {
-        unit: tableWidth * 0.05,
-        description: tableWidth * 0.60,
-        quantity: tableWidth * 0.08,
-        unit_price: tableWidth * 0.10,
-        total: tableWidth * 0.17
+        unit: tableWidth * 0.06,
+        description: tableWidth * 0.55,
+        quantity: tableWidth * 0.09,
+        unit_price: tableWidth * 0.15,
+        total: tableWidth * 0.15
       }
 
       autoTable(doc, {
@@ -365,21 +396,19 @@ export default {
         margin: { left: indent - 15, right: 10 },
 
         head: [
-          // Título COTIZACIÓN sobre todas las columnas
           [
             {
-              content: `COTIZACIÓN PARA ${this.quotationTitle || 'IMPERMEABILIZACION'}`,
+              content: `COTIZACIÓN PARA ${this.quotationTitle.toUpperCase() || 'IMPERMEABILIZACIÓN DE SUPERFICIE'}`,
               colSpan: cols.length,
               styles: {
                 halign: 'center',
-                fontSize: 14,
+                fontSize: 12,
                 fontStyle: 'bold',
                 textColor: [0, 0, 0],
                 fillColor: [255, 255, 255]
               }
             }
           ],
-          // Encabezado normal
           cols.map(c => c.header)
         ],
 
@@ -394,10 +423,13 @@ export default {
               styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255] }
             },
             {
-              content: `${this.formatAmount(this.subtotal)}`,
-              styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255], halign: 'right' }
-            },
-
+              content: this.formatAmount(this.subtotal),
+              styles: {
+                fillColor: [40, 40, 91],
+                textColor: [255, 255, 255],
+                halign: 'right'
+              }
+            }
           ],
           [
             { content: '', colSpan: 2 },
@@ -407,9 +439,13 @@ export default {
               styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255] }
             },
             {
-              content: `${this.formatAmount(this.ivaAmount)}`,
-              styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255], halign: 'right' }
-            },
+              content: this.formatAmount(this.ivaAmount),
+              styles: {
+                fillColor: [40, 40, 91],
+                textColor: [255, 255, 255],
+                halign: 'right'
+              }
+            }
           ],
           ...(this.discountAmount > 0
             ? [[
@@ -417,12 +453,16 @@ export default {
               {
                 content: 'DESCUENTO',
                 colSpan: 2,
-                styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255] }
+                styles: { fillColor: [232, 165, 53], textColor: [255, 255, 255] }
               },
               {
-                content: `${this.formatAmount(this.discountAmount)}`,
-                styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255], halign: 'right' }
-              },
+                content: this.formatAmount(-this.discountAmount),
+                styles: {
+                  fillColor: [232, 165, 53],
+                  textColor: [255, 255, 255],
+                  halign: 'right'
+                }
+              }
             ]]
             : []),
           [
@@ -433,9 +473,14 @@ export default {
               styles: { fillColor: [40, 40, 91], textColor: [255, 255, 255] }
             },
             {
-              content: `${this.formatAmount(this.totalAmount)}`,
-              styles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], halign: 'right', fontStyle: 'bold' }
-            },
+              content: this.formatAmount(this.totalAmount),
+              styles: {
+                fillColor: [255, 255, 255],
+                textColor: [0, 0, 0],
+                halign: 'right',
+                fontStyle: 'bold'
+              }
+            }
           ]
         ],
 
@@ -443,19 +488,33 @@ export default {
 
         styles: {
           fontSize: 10,
-          cellPadding: 4,
+          textColor: [0, 0, 0],
+          cellPadding: 5,
           valign: 'middle',
           overflow: 'linebreak',
-          lineColor: [0, 0, 0],   // líneas negras
-          lineWidth: 0.8         // un poco más gruesas
+          lineColor: [0, 0, 0],
+          lineWidth: 1.0
         },
 
         columnStyles: {
           0: { cellWidth: colWidths.unit },
           1: { cellWidth: colWidths.description, overflow: 'linebreak' },
-          2: { cellWidth: colWidths.quantity, halign: 'right', fillColor: [40, 40, 91], textColor: [255, 255, 255] },
-          3: { cellWidth: colWidths.unit_price, halign: 'right', fillColor: [40, 40, 91], textColor: [255, 255, 255] },
-          4: { cellWidth: colWidths.total, fillColor: [40, 40, 91], halign: 'right' }
+          2: {
+            cellWidth: colWidths.quantity,
+            halign: 'right',
+            fillColor: [40, 40, 91],
+            textColor: [255, 255, 255]
+          },
+          3: {
+            cellWidth: colWidths.unit_price,
+            halign: 'right',
+            fillColor: [40, 40, 91],
+            textColor: [255, 255, 255]
+          },
+          4: {
+            cellWidth: colWidths.total,
+            halign: 'right'
+          }
         },
 
         headStyles: {
@@ -469,9 +528,35 @@ export default {
           fillColor: [255, 255, 255],
           textColor: [0, 0, 0],
           fontStyle: 'bold'
+        },
+
+        didParseCell: data => {
+          if (
+            data.section === 'body' &&
+            ['quantity', 'unit_price', 'total'].includes(data.column.dataKey)
+          ) {
+            data.cell.styles.fillColor = [40, 40, 91]
+            data.cell.styles.textColor = [255, 255, 255]
+          }
+          if (data.section === 'foot' && data.column.index < 2) {
+            data.cell.styles.lineWidth = 0
+            data.cell.styles.lineColor = [255, 255, 255]
+          }
+        },
+
+        didDrawCell: data => {
+          if (
+            data.section === 'foot' &&
+            data.row.index === 0 &&
+            data.column.index < 2
+          ) {
+            const { x, y, width } = data.cell
+            doc.setDrawColor(0, 0, 0)
+            doc.setLineWidth(1.0)
+            doc.line(x, y, x + width, y)
+          }
         }
       })
-
 
       let summaryY = doc.lastAutoTable.finalY + 15
 
