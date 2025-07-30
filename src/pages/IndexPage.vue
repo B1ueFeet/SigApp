@@ -1,44 +1,121 @@
 <!-- src/pages/IndexPage.vue -->
 <template>
   <q-page padding class="relative-position">
-    <client-form v-model="cliente" @onClientSelected="(n) => this.cliente = n" />
-    <q-card-section class="row items-center q-gutter-sm">
-      <q-input v-model.number="workDays" type="number" label="Días de trabajo" style="width: 140px" min="1" />
-      <q-input v-model.number="warrantyMaterialYears" type="number" label="Garantía material (años)"
-        style="width: 200px" min="0" />
-      <q-input v-model.number="warrantyWorkYears" type="number" label="Garantía trabajo (años)" style="width: 200px"
-        min="0" />
-      <q-select v-model="selectedPaymentTerm" :options="paymentTermOptions" label="Forma de pago" emit-value map-options
-        style="width: 180px" />
-    </q-card-section>
+    <q-list bordered class="q-pa-md" style="max-width: 100%">
+      <q-item>
+        <q-item-section>
+          <q-toggle v-model="enableCliente" label="Incluir datos de Cliente" dense />
+        </q-item-section>
+      </q-item>
+      <q-separator />
+      <q-expansion-item group="cotizacion" icon="perm_identity" label="Datos del Cliente" header-class="text-primary"
+        :disable="!enableCliente" v-model="clienteOpen" @before-toggle="onBeforeToggleCliente">
+        <client-form v-model="cliente" @onClientSelected="(n) => this.cliente = n" />
+      </q-expansion-item>
+    </q-list>
 
-    <q-card class="q-mt-lg">
-      <q-card-section class="row items-center q-gutter-sm">
-        <q-select v-model="selectedProdId" :options="productOptions" option-value="id" option-label="common_name"
-          label="Selecciona producto" emit-value map-options style="width: 300px"
-          @update:model-value="onSelectProduct" />
-        <q-input v-model.number="itemQuantity" type="number" label="Cantidad" style="width: 80px"
-          input-class="text-right" @input="onQuantityInput" />
-        <q-input v-model="itemPrice" type="text" inputmode="decimal" label="Valor unitario" style="width: 100px"
-          input-class="text-right" @input="onRowPriceInput({ unit_price: itemPrice })" />
-        <q-btn label="Añadir a cotización" color="primary" @click="addQuotationItem" />
-      </q-card-section>
+    <q-list bordered class="q-pa-md" style="max-width: 100%">
+      <q-expansion-item group="secciones" icon="settings" label="Secciones del Documento" header-class="text-primary"
+        v-model="sectionsOpen">
+        <q-item>
+          <q-item-section>
+            <q-toggle v-model="enableMaterials" label="Incluir Seccion de Materiales" dense />
+          </q-item-section>
+        </q-item>
 
-      <q-card-section class="row items-center q-gutter-sm">
-        <q-checkbox v-model="applyTaxes" label="Incluir IVA (15%)" />
-        <q-input v-model.number="discountAmount" type="number" label="Descuento" style="width: 100px" min="0"
-          input-class="text-right" />
-      </q-card-section>
-    </q-card>
+        <q-item>
+          <q-item-section>
+            <q-toggle v-model="enableTiempoEntrega" label="Incluir Seccion de Tiempo de Entrega" dense />
+          </q-item-section>
+          <q-item-section>
+            <q-input v-model.number="workDays" :disable="!enableTiempoEntrega" type="number" label="Días de trabajo"
+              style="width: 140px" min="1" />
+          </q-item-section>
+        </q-item>
 
-    <q-table class="q-mt-lg" :rows="quotationItems" :columns="columns" row-key="id" flat bordered dense>
+        <q-item>
+          <q-item-section>
+            <q-toggle v-model="enableFormaPago" label="Incluir Seccion de Forma de Pago" dense />
+          </q-item-section>
+          <q-item-section>
+            <q-select v-model="selectedPaymentTerm" :options="paymentTermOptions" :disable="!enableFormaPago"
+              label="Forma de pago" emit-value map-options style="width: 180px" />
+          </q-item-section>
+        </q-item>
+
+        <q-item>
+          <q-item-section>
+            <q-toggle v-model="enableGarantia" label="Incluir Seccion de Garantía" dense />
+          </q-item-section>
+          <q-item-section>
+            <q-input v-model.number="warrantyMaterialYears" :disable="!warrantyMaterialYears" type="number"
+              label="Garantía material (años)" style="width: 200px" min="0" />
+            <q-input v-model.number="warrantyWorkYears" :disable="!warrantyMaterialYears" type="number"
+              label="Garantía trabajo (años)" style="width: 200px" min="0" />
+          </q-item-section>
+        </q-item>
+      </q-expansion-item>
+    </q-list>
+
+
+    <q-list bordered class="q-pa-md" style="max-width: 100%">
+      <q-expansion-item group="tabla" icon="edit" label="Datos de tabla" header-class="text-primary"
+        v-model="tablaOpen">
+        <q-item>
+          <q-item-section>
+            <q-input v-model="quotationTitle" label="COTIZACION PARA? ..." type class="q-pa-xs" />
+          </q-item-section>
+        </q-item>
+
+        <q-item>
+          <q-item-section>
+            <q-checkbox v-model="applyTaxes" label="Incluir IVA (15%)" />
+          </q-item-section>
+          <q-item-section>
+            <q-input v-model.number="discountAmount" type="number" label="Descuento" min="0" input-class="text-right" />
+          </q-item-section>
+        </q-item>
+
+        <q-item>
+          <q-item-section>
+            <q-item-label>Términos y condiciones</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item-section>
+          <q-item v-for="(term, i) in termsOptions" :key="i">
+            <q-checkbox v-model="selectedTerms" :val="term" :label="term" />
+          </q-item>
+        </q-item-section>
+      </q-expansion-item>
+    </q-list>
+
+
+    <q-list bordered class="q-pa-md" style="max-width: 100%">
+      <q-item>
+        <q-item-section>
+          <q-select v-model="selectedProdId" :options="productOptions" option-value="id" option-label="common_name"
+            label="Selecciona producto" emit-value map-options style="width: 100%"
+            @update:model-value="onSelectProduct" />
+        </q-item-section>
+      </q-item>
+      <q-item>
+        <q-item-section>
+          <q-input v-model.number="itemQuantity" type="number" inputmode="decimal" label="Cantidad" style="width: 80px"
+            input-class="text-right" @input="onQuantityInput" />
+        </q-item-section>
+        <q-item-section>
+          <q-input v-model="itemPrice" type="number" inputmode="decimal" label="V. Unitario" style="width: 100px"
+            input-class="text-right" @input="onRowPriceInput({ unit_price: itemPrice })" />
+        </q-item-section>
+        <q-item-section>
+          <q-btn label="+" color="primary" @click="addQuotationItem" />
+        </q-item-section>
+      </q-item>
+    </q-list>
+
+    <q-table class="q-mt-lg" :rows="quotationItems" :columns="columns" row-key="id" flat bordered dense
+      :rows-per-page-options="[0]" :rows-per-page="0" hide-bottom>
       <template v-slot:header="props">
-        <q-tr>
-          <q-th :colspan="columns.length" class="text-center">
-            <q-input v-model="quotationTitle" placeholder="Ingrese título de la cotización" dense standout="bg-grey-2"
-              class="q-pa-xs" />
-          </q-th>
-        </q-tr>
         <!-- CABECERA NORMAL -->
         <q-tr :props="props">
           <q-th v-for="col in props.cols" :key="col.name" :props="props" :style="{ 'text-align': col.align || 'left' }">
@@ -96,7 +173,8 @@
       </q-card>
     </q-dialog>
     <q-page-sticky position="bottom-left" :offset="[18, 18]">
-      <q-btn fab icon="download" color="accent" label="Cotizar" @click="onExportPdf" />
+      <q-btn fab icon="download" :color="buttonColor" :label="buttonLabel" @click="onExportPdf"
+        :disable="isTableEmpty" />
     </q-page-sticky>
     <q-inner-loading :showing="isLoading">
       <q-spinner-gears size="50%" color="sigblue" />
@@ -116,7 +194,30 @@ export default {
   components: { ClientForm, ProductForm },
   data() {
     return {
+      //DATOS DE ACORDEON
+      enableCliente: false,
+      enableMaterials: true,
+      enableTiempoEntrega: true,
+      enableFormaPago: true,
+      enableGarantia: true,
+
+      clienteOpen: false,
+      tablaOpen: false,
+      sectionsOpen: false,
+      savedClienteOpen: false,
+
+      termsOptions: [
+        'La propuesta no incluye el valor de IVA',
+        'La propuesta incluye el valor de IVA',
+        'El cliente se compromete en proporcionar un lugar adecuado para el almacenamiento de herramientas y material',
+        'El metraje es aproximado, en caso de exceder el mismo se cobrarán cargos adicionales',
+        'Trabajos adicionales se realizarán con aprobación escrita del cliente'
+      ],
+      selectedTerms: [],
+
+      //DATOS DE CARGA
       isLoading: false,
+
       cliente: { nombre: '', direccion: '', ruc: '' },
       productOptions: [],
       selectedProdId: null,
@@ -135,14 +236,25 @@ export default {
       ],
       quotationTitle: '',
       workDays: 3,
-      warrantyMaterialYears: 0,
-      warrantyWorkYears: 0,
+      warrantyMaterialYears: 10,
+      warrantyWorkYears: 10,
       paymentTermOptions: [
         '10 90', '20 80', '30 70', '40 60', '50 50',
         '60 40', '70 30', '80 20', '90 10'
       ],
       selectedPaymentTerm: '70 30'
     }
+  },
+  watch: {
+    enableCliente(newVal) {
+      if (!newVal) {
+        this.savedClienteOpen = this.clienteOpen
+        this.clienteOpen = false
+      }
+      else {
+        this.clienteOpen = this.savedClienteOpen
+      }
+    },
   },
   computed: {
     subtotal() {
@@ -156,9 +268,24 @@ export default {
     },
     totalAmount() {
       return this.subtotal + this.ivaAmount - (Number(this.discountAmount) || 0)
+    },
+    isTableEmpty() {
+      return this.quotationItems.length === 0
+    },
+    buttonColor() {
+      return this.isTableEmpty ? 'grey-5' : 'accent'
+    },
+    buttonLabel() {
+      return this.isTableEmpty ? '' : 'Cotizar'
     }
   },
   methods: {
+    //METODODS DE ACORDEON
+    onBeforeToggleCliente(evt) {
+      if (!this.enableCliente) {
+        evt.preventDefault()
+      }
+    },
     loadProductOptions() {
       const prodRows = dbService.db.exec(`
         SELECT id, common_name, unit, description, price
@@ -357,21 +484,31 @@ export default {
       doc.setFont('helvetica', 'bold')
       doc.text('Sr(a):', labelX, y0)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${this.cliente.name || 'A Quien Corresponda'}`, valueX, y0)
-
+      doc.text(
+        `${this.enableCliente ? (this.cliente.name || 'A Quien Corresponda') : 'A Quien Corresponda'}`,
+        valueX,
+        y0
+      )
       // Dirección
       const y1 = startY + 15
       doc.setFont('helvetica', 'bold')
       doc.text('Dirección:', labelX, y1)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${this.cliente.sector || city}`, valueX, y1)
-
+      doc.text(
+        `${this.enableCliente ? (this.cliente.sector || city) : city}`,
+        valueX,
+        y1
+      )
       // Teléfono
       const y2 = startY + 30
       doc.setFont('helvetica', 'bold')
       doc.text('Telf.:', labelX, y2)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${this.cliente.phone || '---------------'}`, valueX, y2)
+      doc.text(
+        `${this.enableCliente ? (this.cliente.phone || '---------------') : '---------------'}`,
+        valueX,
+        y2
+      )
 
       // Pago
       const y3 = startY + 45
@@ -573,102 +710,150 @@ export default {
         }
       })
 
-      let summaryY = doc.lastAutoTable.finalY + 15
-
-      const allMats = this.quotationItems
-        .flatMap(i => i.materials.flatMap(id => dbService.loadMaterials(id)))
-      const uniqueMats = allMats.filter((m, i, a) =>
-        a.findIndex(x => x.id === m.id) === i
-      )
-      if (uniqueMats.length) {
+      let summaryY = doc.lastAutoTable.finalY + 13
+      doc.setFontSize(8)
+      console.log('Seleccionados:', this.selectedTerms)
+      this.selectedTerms.forEach((term) => {
         summaryY = ensurePage(summaryY)
-        doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('MATERIALES:', indent, summaryY)
-        doc.setFont('helvetica', 'normal')
-
-        let cursorY = summaryY + 15
-
-        uniqueMats.forEach(m => {
-          cursorY = ensurePage(cursorY)
-          doc.setFont('helvetica', 'bold')
-          doc.text(`• ${m.name}`, indent, cursorY)
-          doc.setFont('helvetica', 'normal')
-          cursorY += lineHeight
-
-          const descLines = doc.splitTextToSize(m.description, pageWidth - indent - 40)
-          descLines.forEach(line => {
-            cursorY = ensurePage(cursorY)
-            doc.text(line, indent + 20, cursorY)
-            cursorY += lineHeight
-          })
-
-          cursorY += 5
+        const desc = doc.splitTextToSize(term, pageWidth - indent - 20)
+        const termHeight = desc.length * 10
+        desc.forEach((line, j) => {
+          doc.text(j == 0 ? `* ${line}` : line, indent - 10, summaryY + j * lineHeight)
         })
+        doc.setFont('helvetica', 'normal')
+        summaryY += lineHeight
+      })
 
-        summaryY = cursorY + 10
+
+      doc.setFontSize(12)
+      summaryY = ensurePage(summaryY + 15)
+      // SECCION MATERIALES 
+      if (this.enableMaterials) {
+        const allMats = this.quotationItems
+          .flatMap(i => i.materials.flatMap(id => dbService.loadMaterials(id)))
+        const uniqueMats = allMats.filter((m, i, a) =>
+          a.findIndex(x => x.id === m.id) === i
+        )
+        if (uniqueMats.length) {
+          summaryY = ensurePage(summaryY)
+          doc.setFontSize(10)
+          doc.setFont('helvetica', 'bold')
+          doc.text('MATERIALES:', indent, summaryY)
+          doc.setFont('helvetica', 'normal')
+
+          let cursorY = summaryY + 15
+
+          uniqueMats.forEach(m => {
+            cursorY = ensurePage(cursorY)
+            const fullText = `• ${m.name}: ${m.description}`
+            const maxWidth = pageWidth - indent - 15 - 40
+            const lines = doc.splitTextToSize(fullText, maxWidth)
+            lines.forEach((textLine, i) => {
+              if (i === 0) {
+                const boldPart = `• ${m.name}: `
+                doc.setFont('helvetica', 'bold')
+                doc.text(boldPart, indent + 10, cursorY)
+                const boldWidth = doc.getTextWidth(boldPart)
+                doc.setFont('helvetica', 'normal')
+                const restLine = textLine.slice(boldPart.length)
+                doc.text(restLine, indent + boldWidth + 15, cursorY)
+              }
+              else {
+                doc.setFont('helvetica', 'normal')
+                doc.text(textLine, indent + 15, cursorY)
+              }
+              cursorY += lineHeight
+            })
+            cursorY += 5
+          })
+          summaryY = cursorY + 10
+        }
       }
 
       let cursorY2 = ensurePage(summaryY)
 
-      doc.setFont('helvetica', 'bold')
-      doc.text('TIEMPO DE ENTREGA:', indent, cursorY2)
-      doc.setFont('helvetica', 'normal')
-      cursorY2 += lineHeight
-      const entregaLines = doc.splitTextToSize(
-        `${this.workDays} días laborables (sujeto a clima)`,
-        pageWidth - indent - 40
-      )
-      entregaLines.forEach(line => {
-        cursorY2 = ensurePage(cursorY2)
-        doc.text(line, indent + 20, cursorY2)
+      // SECCION TIEMPO DE ENTREGA
+      if (this.enableTiempoEntrega) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('TIEMPO DE ENTREGA:', indent, cursorY2)
+        doc.setFont('helvetica', 'normal')
         cursorY2 += lineHeight
-      })
-      cursorY2 += 5
+        const entregaLines = doc.splitTextToSize(
+          `${this.workDays} días laborables (sujeto a clima)`,
+          pageWidth - indent - 40
+        )
+        entregaLines.forEach(line => {
+          cursorY2 = ensurePage(cursorY2)
+          doc.text(line, indent + 20, cursorY2)
+          cursorY2 += lineHeight
+        })
+        cursorY2 += 10
+      }
 
-      cursorY2 = ensurePage(cursorY2)
-      doc.setFont('helvetica', 'bold')
-      doc.text('FORMA DE PAGO:', indent, cursorY2)
-      doc.setFont('helvetica', 'normal')
-      cursorY2 += lineHeight;
-      [
-        `• ${this.selectedPaymentTerm}% a la firma del contrato.`,
-        `• ${this.selectedPaymentTerm}% al término de la obra.`
-      ].forEach(line => {
+      // SECCION FORMA DE PAGO
+      if (this.enableFormaPago) {
         cursorY2 = ensurePage(cursorY2)
-        doc.text(line, indent + 20, cursorY2)
-        cursorY2 += lineHeight
-      })
+        doc.setFont('helvetica', 'bold')
+        doc.text('FORMA DE PAGO:', indent, cursorY2)
+        doc.setFont('helvetica', 'normal')
+        cursorY2 += lineHeight;
+        const [first, second] = this.selectedPaymentTerm.split(' ');
+        [
+          `• ${first}% a la firma del contrato.`,
+          `• ${second}% al término de la obra.`
+        ].forEach(line => {
+          cursorY2 = ensurePage(cursorY2)
+          doc.text(line, indent + 20, cursorY2)
+          cursorY2 += lineHeight
+        })
+        cursorY2 += 10
+      }
 
-      cursorY2 = ensurePage(cursorY2)
-      doc.setFont('helvetica', 'bold')
-      doc.text('GARANTÍA:', indent, cursorY2)
-      doc.setFont('helvetica', 'normal')
-      cursorY2 += lineHeight
-      const garanLines = doc.splitTextToSize(
-        `La empresa ofrece ${this.warrantyMaterialYears} años por defectos de material y ${this.warrantyWorkYears} años por defectos de instalación. No cubre acciones de terceros, sismos ni casos fortuitos.`,
-        pageWidth - indent - 40
-      )
-      garanLines.forEach(line => {
+      // SECCION GARANTÍA
+      if (this.enableGarantia) {
         cursorY2 = ensurePage(cursorY2)
-        doc.text(line, indent + 20, cursorY2)
+        doc.setFont('helvetica', 'bold')
+        doc.text('GARANTÍA:', indent, cursorY2)
+        doc.setFont('helvetica', 'normal')
         cursorY2 += lineHeight
-      })
+        const garanLines = doc.splitTextToSize(
+          `La empresa ofrece ${this.warrantyMaterialYears} años por defectos de material y ${this.warrantyWorkYears} años por defectos de instalación. No cubre acciones de terceros, sismos ni casos fortuitos.`,
+          pageWidth - indent - 40
+        )
+        garanLines.forEach(line => {
+          cursorY2 = ensurePage(cursorY2)
+          doc.text(line, indent + 20, cursorY2)
+          cursorY2 += lineHeight
+        })
+      }
+
+
+      // SECCION FIRMA
       cursorY2 += 50
-
-
-      cursorY2 = ensurePage(cursorY2)
       const sigWidth = 150
       const sigHeight = 50
+
+      const signatureBlockHeight = 50 + sigHeight + 10 + 1 + 15 + (11 * 2) + 5
+
+      function ensureBlockFits(y, blockHeight) {
+        if (y + blockHeight > pageHeight - bottomMargin) {
+          doc.addPage()
+          drawHeader()
+          drawFooter()
+          return topMarginAfterBreak
+        }
+        return y
+      }
+      cursorY2 = ensureBlockFits(cursorY2, signatureBlockHeight)
       const sigX = (pageWidth - sigWidth + indent) / 2
-      doc.addImage('/firma.png', 'PNG', sigX - 10, cursorY2, sigWidth + 30, sigHeight + 10)
-      cursorY2 = ensurePage(cursorY2 + 50)
+      doc.addImage('/firma.png', 'PNG', sigX - 10, cursorY2 - 50, sigWidth + 30, sigHeight + 10)
       doc.setLineWidth(0.5)
       doc.line(sigX, cursorY2, (pageWidth + sigWidth + indent) / 2, cursorY2)
       doc.setFontSize(11)
       doc.text('Téc. Francisco Sánchez', (pageWidth + indent) / 2, cursorY2 + 15, { align: 'center' })
       doc.text('Director de Área Técnica', (pageWidth + indent) / 2, cursorY2 + 30, { align: 'center' })
-
+      doc.save(`cotizacion_${new Date().toISOString().slice(0, 10)}.pdf`)
       doc.save(`cotizacion_${new Date().toISOString().slice(0, 10)}.pdf`)
     }
 
