@@ -1,6 +1,6 @@
 <!-- src/pages/IndexPage.vue -->
 <template>
-  <q-page padding>
+  <q-page padding class="relative-position">
     <client-form v-model="cliente" @onClientSelected="(n) => this.cliente = n" />
     <q-card-section class="row items-center q-gutter-sm">
       <q-input v-model.number="workDays" type="number" label="Días de trabajo" style="width: 140px" min="1" />
@@ -82,7 +82,6 @@
       </q-card-section>
     </q-card>
 
-    <q-btn label="Exportar PDF" color="secondary" class="q-mt-md" @click="exportPdf" />
 
     <q-dialog v-model="showProductDialog" persistent maximized>
       <q-card style="min-width:50vw; max-width:95vw">
@@ -96,6 +95,12 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+    <q-page-sticky position="bottom-left" :offset="[18, 18]">
+      <q-btn fab icon="download" color="accent" label="Cotizar" @click="onExportPdf" />
+    </q-page-sticky>
+    <q-inner-loading :showing="isLoading">
+      <q-spinner-gears size="50%" color="sigblue" />
+    </q-inner-loading>
   </q-page>
 </template>
 
@@ -111,6 +116,7 @@ export default {
   components: { ClientForm, ProductForm },
   data() {
     return {
+      isLoading: false,
       cliente: { nombre: '', direccion: '', ruc: '' },
       productOptions: [],
       selectedProdId: null,
@@ -269,6 +275,15 @@ export default {
       const num = Number(val).toFixed(2)
       const padded = num.padStart(8, ' ')
       return '$  ' + padded
+    },
+    async onExportPdf() {
+      this.isLoading = true
+      try {
+        await this.exportPdf()
+      }
+      finally {
+        this.isLoading = false
+      }
     },
 
     async exportPdf() {
