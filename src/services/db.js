@@ -85,7 +85,8 @@ export default {
       product_id INTEGER,
       description TEXT,
       quantity REAL,
-      unit_price REAL
+      unit_price REAL,
+      unit TEXT
     );
   `);
 
@@ -240,14 +241,15 @@ export default {
     for (const item of items) {
       this.db.run(
         `INSERT INTO quotation_items
-           (quotation_id, product_id, description, quantity, unit_price)
-         VALUES (?,?,?,?,?)`,
+           (quotation_id, product_id, description, quantity, unit_price, unit)
+         VALUES (?,?,?,?,?,?)`,
         [
           quotationId,
           item.productId,
           item.description,
           item.quantity,
-          item.unit_price
+          item.unit_price,
+          item.unit || ''
         ]
       );
 
@@ -284,6 +286,24 @@ export default {
     );
   },
 
+  async deleteQuotation(id) {
+    this.db.run(
+      `DELETE FROM quotation_item_material
+     WHERE item_id IN (
+       SELECT id FROM quotation_items WHERE quotation_id = ?
+     )`,
+      [id]
+    )
+    this.db.run(
+      `DELETE FROM quotation_items WHERE quotation_id = ?`,
+      [id]
+    )
+    this.db.run(
+      `DELETE FROM quotations WHERE id = ?`,
+      [id]
+    )
+    await this.save()
+  },
 
   loadQuotationById(quotationId) {
     const hdr = this.db.exec(
@@ -297,24 +317,26 @@ export default {
       work_days, payment_term, warranty_material, warranty_work] = hdr;
 
     const itemsRes = this.db.exec(
-      `SELECT id, product_id, description, quantity, unit_price
+      `SELECT *
        FROM quotation_items
        WHERE quotation_id = ?`, [quotationId]
     )[0]?.values || [];
-
-    const items = itemsRes.map(([itemId, product_id, desc, qty, up]) => {
+    console.log('Items de cotización: desde service ', itemsRes);
+    const items = itemsRes.map(([itemId, product_id, tableId, desc, qty, up, unit]) => {
       const mats = (this.db.exec(
         `SELECT material_id FROM quotation_item_material WHERE item_id = ?`, [itemId]
       )[0]?.values || []).map(r => r[0]);
       return {
         itemId,
         productId: product_id,
+        unit: unit,
         description: desc,
         quantity: qty,
         unit_price: up,
         materials: mats
       };
     });
+
 
     return {
       id, date, client_id, title,
@@ -327,7 +349,71 @@ export default {
       warranty_work,
       items
     };
-  }
+  },
 
+
+  async saveClient(client) {
+    if (client.id) {
+      // actualizar
+      this.db.run(
+        `UPDATE clients
+           SET name = ?, phone = ?, sector = ?
+         WHERE id = ?`,
+        [client.name, client.phone, client.sector, client.id]
+      );
+      var savedId = client.id;
+    }
+    else {
+      // insertar
+      this.db.run(
+        `INSERT INTO clients (name, phone, sector)
+         VALUES (?, ?, ?)`,
+        [client.name, client.phone, client.sector]
+      );
+      // recuperar el id autogenerado
+      const rowid = this.db.exec(`SELECT last_insert_rowid();`)[0].values[0][0];
+      var savedId = Number(rowid);
+    }
+
+    // persistir en IndexedDB
+    await this.save();
+    return savedId;
+  },
+
+
+  async deleteClient(id) {
+    this.db.run(
+      `DELETE FROM clients WHERE id = ?`,
+      [id]
+    );
+    // si tuvieras FK, aquí borrarías cotizaciones u otras tablas relacionadas
+    await this.save();
+  },
+
+  loadClients() {
+    const res = this.db.exec(`
+      SELECT id, name, phone, sector
+      FROM clients
+      ORDER BY name
+    `);
+    return (res[0]?.values || []).map(
+      ([id, name, phone, sector]) => ({ id, name, phone, sector })
+    );
+  },
+
+
+  searchClientsByName(term) {
+    const like = `%${term}%`;
+    const res = this.db.exec(
+      `SELECT id, name, phone, sector
+       FROM clients
+       WHERE name LIKE ?
+       ORDER BY name`,
+      [like]
+    );
+    return (res[0]?.values || []).map(
+      ([id, name, phone, sector]) => ({ id, name, phone, sector })
+    );
+  }
 
 }

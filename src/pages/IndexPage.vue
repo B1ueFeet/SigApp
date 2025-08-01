@@ -193,6 +193,15 @@
       <q-btn fab icon="download" :color="buttonColor" :label="buttonLabel" @click="onExportPdf"
         :disable="isTableEmpty" />
     </q-page-sticky>
+
+    <q-page-sticky position="bottom-left" :offset="[18, 18 * 5]">
+      <q-btn fab icon="autorenew" color="primary" @click="() => {
+        $router.push({ path: '/', query: { editId: -1 } })
+        this.editingId = -1
+        $router.go(0)
+      }" :disable="isTableEmpty" />
+    </q-page-sticky>
+
     <q-inner-loading :showing="isLoading">
       <q-spinner-gears size="50%" color="sigblue" />
     </q-inner-loading>
@@ -240,7 +249,10 @@ export default {
       dialogTitle: '',
       alertMessage: '',
 
-      cliente: { nombre: '', direccion: '', ruc: '' },
+      // DATOS DE EDICION 
+      editingId: null,
+
+      cliente: { id: '-1', nombre: '', direccion: '', ruc: '' },
       productOptions: [],
       selectedProdId: null,
       itemQuantity: 1,
@@ -438,10 +450,10 @@ export default {
         await this.saveQuotationToDb()
       }
       catch (err) {
-          const errorMessage = 'Error al GUARDAR COTIZACION: ' + (err.message || err)
-          console.error('Error al guardar cotizacon:', err)
-          this.showDialog('error', errorMessage)
-          this.isLoading = false
+        const errorMessage = 'Error al GUARDAR COTIZACION: ' + (err.message || err)
+        console.error('Error al guardar cotizacon:', err)
+        this.showDialog('error', errorMessage)
+        this.isLoading = false
         return
       }
       finally {
@@ -463,6 +475,7 @@ export default {
     },
 
     async saveQuotationToDb() {
+      console.log(`CLIENTE QUE SERA GUARDADO: ${this.cliente.name} con el id ${this.cliente.id}`)
       const quotationData = {
         client_id: this.enableCliente && this.cliente.id ? this.cliente.id : null,
         title: this.quotationTitle,
@@ -475,14 +488,19 @@ export default {
         warranty_work: this.warrantyWorkYears
       }
 
+      console.log('Datos de cotización:', quotationData)
+
       // 2.2) Ítems
       const items = this.quotationItems.map(item => ({
-        productId: item.id,               // asume que `item.id` es el product_id
+        productId: item.id,   
+        unit: item.unit,
         description: item.description,
         quantity: item.quantity,
         unit_price: parseFloat(item.unit_price),
         materials: item.materials         // array de material_id
       }))
+
+      console.log('Items de cotización:', items)
 
       // 2.3) Guarda en la base y recupera el nuevo ID
       const newId = await dbService.saveQuotation(quotationData, items)
@@ -929,15 +947,101 @@ export default {
       doc.setFontSize(11)
       doc.text('Téc. Francisco Sánchez', (pageWidth + indent) / 2, cursorY2 + 15, { align: 'center' })
       doc.text('Director de Área Técnica', (pageWidth + indent) / 2, cursorY2 + 30, { align: 'center' })
-      doc.save(`cotizacion_${new Date().toISOString().slice(0, 10)}.pdf`)
-      doc.save(`cotizacion_${new Date().toISOString().slice(0, 10)}.pdf`)
-    }
+
+      console.log('CLIENTE:', this.cliente)
+
+
+      const nombre = String(this.cliente.name || 'CLIENTE').toUpperCase()
+      const direccion = String(this.cliente.sector || 'DIRECCION').toUpperCase()
+
+      const safe = s => String(s)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+
+      const fileName = `COT_${safe(this.enableCliente ? nombre : 'SN')}_${safe(this.enableCliente ? direccion : city)}.pdf`
+      doc.save(fileName)
+    },
+    async loadQuotationToEdit(id) {
+      // 1) Recupera la cotización
+      const full = dbService.loadQuotationById(id)
+      if (!full) {
+        this.showDialog('error', `Cotización #${id} no encontrada`)
+        return
+      }
+
+      // 2) CLIENTE
+      if (full.client_id) {
+        this.enableCliente = true
+        this.clienteOpen = true
+        // Carga el cliente directo de la tabla:
+        const row = dbService.db.exec(
+          `SELECT id, name AS nombre, phone AS direccion, sector AS ruc
+         FROM clients
+         WHERE id = ?`,
+          [full.client_id]
+        )[0]?.values?.[0] || []
+        this.cliente = {
+          id: row[0],
+          nombre: row[1],
+          direccion: row[2],
+          ruc: row[3]
+        }
+
+
+      }
+
+      // 3) SECCIONES
+      this.enableMaterials = true
+      this.enableTiempoEntrega = true
+      this.workDays = full.work_days
+      this.enableFormaPago = true
+      this.selectedPaymentTerm = full.payment_term
+      this.enableGarantia = true
+      this.warrantyMaterialYears = full.warranty_material
+      this.warrantyWorkYears = full.warranty_work
+
+      // 4) DATOS DE TABLA
+      this.quotationTitle = full.title
+      this.applyTaxes = full.apply_taxes
+      this.discountAmount = full.discount
+      this.selectedTerms = full.terms
+
+      console.log('Datos de cotización cargados:', full)
+      this.quotationItems = full.items.map(item => {
+        // Buscamos en productOptions para tener unidad y descripción
+        const prod = this.productOptions.find(p => p.id === item.productId) || {}
+        console.log('Producto encontrado:', item)
+        return {
+          id: item.itemId,            // row-key único
+          productId: item.productId,
+          unit: item.unit || '',
+          description: item.description || prod.description || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          materials: item.materials
+        }
+      })
+      
+    },
 
 
   },
 
-  mounted() {
+  async mounted() {
+    // 1) Asegura base y opciones de producto
+    await dbService.initDatabase()
     this.loadProductOptions()
+
+
+    const editId = Number(this.$route.query.editId)
+    console.log('editId:', editId)
+    if (editId >= 0) {
+      console.log(' hay edición, iniciando  cotización')
+      this.editingId = editId
+      this.loadQuotationToEdit(editId)
+    }
   }
 }
 </script>
