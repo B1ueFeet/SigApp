@@ -62,6 +62,40 @@ export default {
         PRIMARY KEY(product_id, material_id)
       );
     `)
+    this.db.run(`
+    CREATE TABLE IF NOT EXISTS quotations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT,
+      client_id INTEGER,
+      title TEXT,
+      apply_taxes INTEGER,
+      discount REAL,
+      terms TEXT,               -- JSON-encoded array de términos
+      work_days INTEGER,
+      payment_term TEXT,
+      warranty_material INTEGER,
+      warranty_work INTEGER
+    );
+  `);
+
+    this.db.run(`
+    CREATE TABLE IF NOT EXISTS quotation_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quotation_id INTEGER,
+      product_id INTEGER,
+      description TEXT,
+      quantity REAL,
+      unit_price REAL
+    );
+  `);
+
+    this.db.run(`
+    CREATE TABLE IF NOT EXISTS quotation_item_material (
+      item_id INTEGER,
+      material_id INTEGER,
+      PRIMARY KEY(item_id, material_id)
+    );
+  `);
   },
 
   async save() {
@@ -166,6 +200,134 @@ export default {
       [name, description, id]
     );
     await this.save();
+  },
+
+
+  async saveQuotation(quotation, items) {
+    const {
+      client_id,
+      title,
+      apply_taxes,
+      discount,
+      terms,
+      work_days,
+      payment_term,
+      warranty_material,
+      warranty_work
+    } = quotation;
+
+    this.db.run(
+      `INSERT INTO quotations
+         (date, client_id, title, apply_taxes, discount, terms, work_days, payment_term, warranty_material, warranty_work)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [
+        new Date().toISOString(),
+        client_id,
+        title,
+        apply_taxes ? 1 : 0,
+        discount,
+        JSON.stringify(terms),
+        work_days,
+        payment_term,
+        warranty_material,
+        warranty_work
+      ]
+    );
+
+    const rowid = this.db.exec(`SELECT last_insert_rowid();`)[0].values[0][0];
+    const quotationId = Number(rowid);
+
+    for (const item of items) {
+      this.db.run(
+        `INSERT INTO quotation_items
+           (quotation_id, product_id, description, quantity, unit_price)
+         VALUES (?,?,?,?,?)`,
+        [
+          quotationId,
+          item.productId,
+          item.description,
+          item.quantity,
+          item.unit_price
+        ]
+      );
+
+      const itemRow = this.db.exec(`SELECT last_insert_rowid();`)[0].values[0][0];
+      const itemId = Number(itemRow);
+
+      for (const matId of item.materials || []) {
+        this.db.run(
+          `INSERT INTO quotation_item_material (item_id, material_id)
+           VALUES (?,?)`,
+          [itemId, matId]
+        );
+      }
+    }
+
+    await this.save();
+
+    return quotationId;
+  },
+
+
+  loadQuotations() {
+    const res = this.db.exec(`
+      SELECT id, date, client_id, title, apply_taxes, discount
+      FROM quotations
+      ORDER BY date DESC
+    `);
+    return (res[0]?.values || []).map(
+      ([id, date, client_id, title, apply_taxes, discount]) => ({
+        id, date, client_id, title,
+        apply_taxes: Boolean(apply_taxes),
+        discount
+      })
+    );
+  },
+
+
+  loadQuotationById(quotationId) {
+    const hdr = this.db.exec(
+      `SELECT id, date, client_id, title, apply_taxes, discount, terms,
+              work_days, payment_term, warranty_material, warranty_work
+       FROM quotations WHERE id = ?`, [quotationId]
+    )[0]?.values?.[0];
+    if (!hdr) return null;
+
+    const [id, date, client_id, title, apply_taxes, discount, terms,
+      work_days, payment_term, warranty_material, warranty_work] = hdr;
+
+    const itemsRes = this.db.exec(
+      `SELECT id, product_id, description, quantity, unit_price
+       FROM quotation_items
+       WHERE quotation_id = ?`, [quotationId]
+    )[0]?.values || [];
+
+    const items = itemsRes.map(([itemId, product_id, desc, qty, up]) => {
+      const mats = (this.db.exec(
+        `SELECT material_id FROM quotation_item_material WHERE item_id = ?`, [itemId]
+      )[0]?.values || []).map(r => r[0]);
+      return {
+        itemId,
+        productId: product_id,
+        description: desc,
+        quantity: qty,
+        unit_price: up,
+        materials: mats
+      };
+    });
+
+    return {
+      id, date, client_id, title,
+      apply_taxes: Boolean(apply_taxes),
+      discount,
+      terms: JSON.parse(terms),
+      work_days,
+      payment_term,
+      warranty_material,
+      warranty_work,
+      items
+    };
   }
+
 
 }

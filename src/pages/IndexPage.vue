@@ -1,6 +1,36 @@
 <!-- src/pages/IndexPage.vue -->
 <template>
   <q-page padding class="relative-position">
+    <q-dialog v-model="showProductDialog" persistent maximized>
+      <q-card style="min-width:50vw; max-width:95vw">
+        <q-card-section class="row justify-between items-center">
+          <div class="text-h6">Crear / Editar producto</div>
+          <q-btn icon="close" flat round dense @click="cancelNewProduct" />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <product-form ref="prodForm" @added="onProductSaved" @saved="onProductSaved" />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+
+    <q-dialog v-model="dialog" backdrop-filter="blur(4px) saturate(150%)">
+      <q-card>
+        <q-card-section class="row items-center q-pb-none text-h6">
+          {{ dialogTitle }}
+        </q-card-section>
+
+        <q-card-section>
+          {{ alertMessage }}.
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-list bordered class="q-pa-md" style="max-width: 100%">
       <q-item>
         <q-item-section>
@@ -159,19 +189,6 @@
       </q-card-section>
     </q-card>
 
-
-    <q-dialog v-model="showProductDialog" persistent maximized>
-      <q-card style="min-width:50vw; max-width:95vw">
-        <q-card-section class="row justify-between items-center">
-          <div class="text-h6">Crear / Editar producto</div>
-          <q-btn icon="close" flat round dense @click="cancelNewProduct" />
-        </q-card-section>
-        <q-separator />
-        <q-card-section>
-          <product-form ref="prodForm" @added="onProductSaved" @saved="onProductSaved" />
-        </q-card-section>
-      </q-card>
-    </q-dialog>
     <q-page-sticky position="bottom-left" :offset="[18, 18]">
       <q-btn fab icon="download" :color="buttonColor" :label="buttonLabel" @click="onExportPdf"
         :disable="isTableEmpty" />
@@ -217,6 +234,11 @@ export default {
 
       //DATOS DE CARGA
       isLoading: false,
+
+      // DIALOG
+      dialog: false,
+      dialogTitle: '',
+      alertMessage: '',
 
       cliente: { nombre: '', direccion: '', ruc: '' },
       productOptions: [],
@@ -398,6 +420,13 @@ export default {
         }, () => resolve(''))
       })
     },
+
+    showDialog(type, message) {
+      this.alertMessage = message
+      this.dialogTitle = type === 'error' ? 'Error' : 'Información'
+      this.dialog = true
+    },
+
     formatAmount(val) {
       const num = Number(val).toFixed(2)
       const padded = num.padStart(8, ' ')
@@ -406,11 +435,58 @@ export default {
     async onExportPdf() {
       this.isLoading = true
       try {
-        await this.exportPdf()
+        await this.saveQuotationToDb()
+      }
+      catch (err) {
+          const errorMessage = 'Error al GUARDAR COTIZACION: ' + (err.message || err)
+          console.error('Error al guardar cotizacon:', err)
+          this.showDialog('error', errorMessage)
+          this.isLoading = false
+        return
       }
       finally {
-        this.isLoading = false
+
+        try {
+          await this.exportPdf()
+        } catch (err) {
+          const errorMessage = 'Error al generar el PDF: ' + (err.message || err)
+          console.error('Error al generar PDF:', err)
+          this.showDialog('error', errorMessage)
+          this.isLoading = false
+
+        }
+        finally {
+          this.isLoading = false
+
+        }
       }
+    },
+
+    async saveQuotationToDb() {
+      const quotationData = {
+        client_id: this.enableCliente && this.cliente.id ? this.cliente.id : null,
+        title: this.quotationTitle,
+        apply_taxes: this.applyTaxes,
+        discount: this.discountAmount,
+        terms: this.selectedTerms,
+        work_days: this.workDays,
+        payment_term: this.selectedPaymentTerm,
+        warranty_material: this.warrantyMaterialYears,
+        warranty_work: this.warrantyWorkYears
+      }
+
+      // 2.2) Ítems
+      const items = this.quotationItems.map(item => ({
+        productId: item.id,               // asume que `item.id` es el product_id
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: parseFloat(item.unit_price),
+        materials: item.materials         // array de material_id
+      }))
+
+      // 2.3) Guarda en la base y recupera el nuevo ID
+      const newId = await dbService.saveQuotation(quotationData, items)
+      console.log('Cotización guardada con ID', newId)
     },
 
     async exportPdf() {
