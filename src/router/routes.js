@@ -1,13 +1,20 @@
 const routes = [
   {
-    path: '/',
+    path: '/cotizacion',
     component: () => import('layouts/MainLayout.vue'),
     children: [
-      { path: '', component: () => import('pages/IndexPage.vue') }
+      { path: '/', component: () => import('pages/IndexPage.vue') }
     ]
   },
   {
     path: '/historial',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/QuotationHistoryPage.vue') }
+    ]
+  },
+  {
+    path: '/garantia',
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/QuotationHistoryPage.vue') }

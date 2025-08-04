@@ -170,6 +170,9 @@
           <q-td auto-width class="text-right">
             {{ (props.row.quantity * parseFloat(props.row.unit_price || 0)).toFixed(2) }}
           </q-td>
+          <q-td auto-width class="text-center">
+            <q-btn dense flat round icon="delete" color="negative" @click="removeQuotationItem(props.row.id)" />
+          </q-td>
         </q-tr>
       </template>
     </q-table>
@@ -189,17 +192,20 @@
       </q-card-section>
     </q-card>
 
+    <q-card flat class="q-mt-md" style="max-width: 300px; margin-left: auto;">
+      <q-card-section>
+        <div  style="height: 7vh; grid-template-columns: 1fr 1fr;">
+        </div>
+      </q-card-section>
+    </q-card>
+
     <q-page-sticky position="bottom-left" :offset="[18, 18]">
       <q-btn fab icon="download" :color="buttonColor" :label="buttonLabel" @click="onExportPdf"
         :disable="isTableEmpty" />
     </q-page-sticky>
 
     <q-page-sticky position="bottom-left" :offset="[18, 18 * 5]">
-      <q-btn fab icon="autorenew" color="primary" @click="() => {
-        $router.push({ path: '/', query: { editId: -1 } })
-        this.editingId = -1
-        $router.go(0)
-      }" :disable="isTableEmpty" />
+      <q-btn fab icon="autorenew" color="primary" @click="resetForm" :disable="isTableEmpty" />
     </q-page-sticky>
 
     <q-inner-loading :showing="isLoading">
@@ -266,7 +272,9 @@ export default {
         { name: 'description', label: 'Descripción', field: 'description', headerAlign: 'center' },
         { name: 'quantity', label: 'Cantidad', field: 'quantity', headerAlign: 'center', align: 'right' },
         { name: 'unit_price', label: 'V. unitario', field: 'unit_price', headerAlign: 'center', align: 'right' },
-        { name: 'total', label: 'V. total', field: 'total', headerAlign: 'center', align: 'right' }
+        { name: 'total', label: 'V. total', field: 'total', headerAlign: 'center', align: 'right' },
+        { name: 'Eliminar', label: 'Acciones', field: 'actions', headerAlign: 'center' }
+
       ],
       quotationTitle: '',
       workDays: 3,
@@ -319,6 +327,12 @@ export default {
       if (!this.enableCliente) {
         evt.preventDefault()
       }
+    },
+
+    removeQuotationItem(itemId) {
+      this.quotationItems = this.quotationItems.filter(
+        item => item.id !== itemId
+      )
     },
     loadProductOptions() {
       const prodRows = dbService.db.exec(`
@@ -473,6 +487,42 @@ export default {
         }
       }
     },
+    resetForm() {
+      // Reinicia flags de secciones
+      this.enableCliente = false
+      this.enableMaterials = true
+      this.enableTiempoEntrega = true
+      this.enableFormaPago = true
+      this.enableGarantia = true
+
+      this.clienteOpen = false
+      this.sectionsOpen = false
+      this.tablaOpen = false
+
+      //  Reinicia datos de cliente y términos
+      this.cliente = { id: '-1', nombre: '', direccion: '', ruc: '' }
+      this.selectedTerms = []
+
+      //  Vacía la tabla de ítems y selección de producto
+      this.quotationItems = []
+      this.selectedProdId = null
+      this.itemQuantity = 1
+      this.itemPrice = ''
+
+      // Reinicia inputs de la sección “Datos de tabla”
+      this.quotationTitle = ''
+      this.applyTaxes = false
+      this.discountAmount = 0
+
+      //  Reinicia secciones “Avanzadas”
+      this.workDays = 3
+      this.warrantyMaterialYears = 10
+      this.warrantyWorkYears = 10
+      this.selectedPaymentTerm = '70 30'
+
+      // Vuelve a cargar catálogo de productos
+      this.loadProductOptions()
+    },
 
     async saveQuotationToDb() {
       console.log(`CLIENTE QUE SERA GUARDADO: ${this.cliente.name} con el id ${this.cliente.id}`)
@@ -490,19 +540,17 @@ export default {
 
       console.log('Datos de cotización:', quotationData)
 
-      // 2.2) Ítems
+
       const items = this.quotationItems.map(item => ({
-        productId: item.id,   
+        productId: item.id,
         unit: item.unit,
         description: item.description,
         quantity: item.quantity,
         unit_price: parseFloat(item.unit_price),
-        materials: item.materials         // array de material_id
+        materials: item.materials
       }))
 
       console.log('Items de cotización:', items)
-
-      // 2.3) Guarda en la base y recupera el nuevo ID
       const newId = await dbService.saveQuotation(quotationData, items)
       console.log('Cotización guardada con ID', newId)
     },
@@ -823,12 +871,31 @@ export default {
       doc.setFontSize(12)
       summaryY = ensurePage(summaryY + 15)
       // SECCION MATERIALES 
+
       if (this.enableMaterials) {
-        const allMats = this.quotationItems
-          .flatMap(i => i.materials.flatMap(id => dbService.loadMaterials(id)))
-        const uniqueMats = allMats.filter((m, i, a) =>
-          a.findIndex(x => x.id === m.id) === i
-        )
+        // 1) Aplana todos los arrays de IDs que devuelve loadProductMaterials(item.id)
+        const allMatIds = this.quotationItems.flatMap(item => {
+          const materials = item.materials
+          return materials
+        })
+        console.log('Todos los IDs de materiales:', allMatIds)
+
+        const allMats = dbService.loadMaterials()
+
+        // 2) Deduplica con Set
+        const uniqueMatIds = [...new Set(allMatIds)]
+        console.log('IDs únicos de materiales:', uniqueMatIds)  // [1,3]
+
+        // 3) (Opcional) Si quieres el objeto completo de cada material:
+        const idSet = new Set(uniqueMatIds)
+        const uniqueMats = allMats.filter(mat => idSet.has(mat.id))
+        console.log('Materiales únicos en la cotización:', uniqueMats)
+
+        this.quotationItems.forEach(item => {
+          console.log('Item actual:', item)
+          const itemMaterials = dbService.loadProductMaterials(item.id)
+          console.log('Materiales del item:', itemMaterials)
+        })
         if (uniqueMats.length) {
           summaryY = ensurePage(summaryY)
           doc.setFontSize(10)
@@ -1023,7 +1090,7 @@ export default {
           materials: item.materials
         }
       })
-      
+
     },
 
 
@@ -1034,13 +1101,16 @@ export default {
     await dbService.initDatabase()
     this.loadProductOptions()
 
-
     const editId = Number(this.$route.query.editId)
     console.log('editId:', editId)
     if (editId >= 0) {
       console.log(' hay edición, iniciando  cotización')
       this.editingId = editId
       this.loadQuotationToEdit(editId)
+    }
+    else {
+      // modo “nueva cotización”
+      this.resetForm()
     }
   }
 }
